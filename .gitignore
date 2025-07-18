@@ -1,3 +1,4 @@
 .snakemake/*
-snakemake/*
+snakemake/sfss
+snakemake/prediction
 bin/*

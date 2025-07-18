@@ -1,0 +1,52 @@
+import os
+
+configfile: "snakemake/config.yml"
+
+REPEATS = config["repeats"]
+SFS_DIR = "snakemake/sfss"
+PRED_DIR = "snakemake/prediction"
+OUT_FILE=config["output_file"]
+GRAPH=config["graph"],
+
+
+# Ensure output dirs exist
+os.makedirs(SFS_DIR, exist_ok=True)
+os.makedirs(PRED_DIR, exist_ok=True)
+
+rule all:
+    input:
+        f"{OUT_FILE}.yml",
+        f"{OUT_FILE}.png"
+
+rule simulate_sfs:
+    output:
+        sfs_file = f"{SFS_DIR}/sfs_{{seed}}.blk"
+    params:
+        seq_len=config["sequence_length"],
+        mut=config["mutation_rate"],
+        rec=config["recombination_rate"]
+    shell:
+        "python snakemake/scripts/simulate_sfs.py {wildcards.seed} {GRAPH} {params.seq_len} {params.mut} {params.rec} {output.sfs_file}"
+
+rule plot_sfs:
+    input:
+        sfs_file = f"{SFS_DIR}/sfs_{{i}}.blk"
+    output:
+        directory(f"{PRED_DIR}/test{{i}}")
+    params:
+        seq_len=config["sequence_length"],
+        mut=config["mutation_rate"]
+    shell:
+        "bash blockbuster_plot.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {params.mut}"
+
+rule anaylse:
+    input:
+        dirs = expand(f"{PRED_DIR}/test{{i}}", i=range(1, REPEATS + 1))
+    output:
+        yml = f"{OUT_FILE}.yml",
+        png = f"{OUT_FILE}.png"
+    shell:
+        """
+        python snakemake/scripts/combine.py {PRED_DIR} {output.yml}
+        python snakemake/scripts/drawcombined.py {output.yml} {GRAPH} {output.png}
+        """
