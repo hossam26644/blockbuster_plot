@@ -50,3 +50,11 @@ clean:
 	rm -f $(OBJ_DIR)/*.o $(TARGET1) $(TARGET2) $(TARGET3)
 
 .PHONY: clean all
+
+
+snake:
+	cd snakemake && snakemake --cores 16 --directory .. --force
+
+snakeclean:
+	rm -r .snakemake snakemake/sfss snakemake/prediction snakemake/combined_demes.yml snakemake/combined_demes.png
+
