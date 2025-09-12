@@ -7,6 +7,7 @@ SFS_DIR = "snakemake/sfss"
 PRED_DIR = "snakemake/prediction"
 OUT_FILE=config["output_file"]
 GRAPH=config["graph"],
+BRANCH_SFS = config["branch_sfs"]
 
 
 # Ensure output dirs exist
@@ -15,8 +16,8 @@ os.makedirs(PRED_DIR, exist_ok=True)
 
 rule all:
     input:
-        f"{OUT_FILE}.yml",
-        f"{OUT_FILE}.png"
+        f"{OUT_FILE}_ci.png",
+        f"{OUT_FILE}_ci_end_time.csv"
 
 rule simulate_sfs:
     output:
@@ -26,7 +27,7 @@ rule simulate_sfs:
         mut=config["mutation_rate"],
         rec=config["recombination_rate"]
     shell:
-        "python snakemake/scripts/simulate_sfs.py {wildcards.seed} {GRAPH} {params.seq_len} {params.mut} {params.rec} {output.sfs_file}"
+        "python snakemake/scripts/simulate_sfs.py {wildcards.seed} {GRAPH} {params.seq_len} {params.mut} {params.rec} {output.sfs_file} {BRANCH_SFS}"
 
 rule plot_sfs:
     input:
@@ -37,7 +38,7 @@ rule plot_sfs:
         seq_len=config["sequence_length"],
         mut=config["mutation_rate"]
     shell:
-        "bash blockbuster_plot.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {params.mut}"
+        "bash blockbuster_plot.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {params.mut} -T 4e11,4e10,4e11"
 
 rule anaylse:
     input:
@@ -50,3 +51,14 @@ rule anaylse:
         python snakemake/scripts/combine.py {PRED_DIR} {output.yml}
         python snakemake/scripts/drawcombined.py {output.yml} {GRAPH} {output.png}
         """
+
+rule confidence_interval:
+    input:
+        yml = f"{OUT_FILE}.yml",
+        png = f"{OUT_FILE}.png"
+    output:
+        ci_yml = f"{OUT_FILE}_ci.png",
+        csv = f"{OUT_FILE}_ci_end_time.csv"
+
+    shell:
+        "python snakemake/scripts/confidence_interval.py {OUT_FILE}.yml {GRAPH} {OUT_FILE}_ci.png"

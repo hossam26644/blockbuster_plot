@@ -1,6 +1,7 @@
-repeats: 10
+repeats: 100
 sequence_length: 10000000
-mutation_rate: 0.00001
+mutation_rate: 1
 recombination_rate: 0.0000001
 graph: "snakemake/graph.yml"
 output_file: "snakemake/combined_demes"
+branch_sfs: true
