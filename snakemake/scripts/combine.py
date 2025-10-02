@@ -5,15 +5,16 @@ import sys
 
 # Root folder where subdirectories contain demes.yml
 root_dir = sys.argv[1]
-output_file = sys.argv[2]
+blocks = int(sys.argv[2])
+output_file = sys.argv[3]
 
 combined_demes = []
 time_units = None
 
 # Walk through all subdirectories
 for dirpath, dirnames, filenames in os.walk(root_dir):
-    if "deme.yml" in filenames:
-        file_path = os.path.join(dirpath, "deme.yml")
+    if f"demes_block{blocks}.yaml" in filenames:
+        file_path = os.path.join(dirpath, f"demes_block{blocks}.yaml")
         with open(file_path) as f:
             data = yaml.safe_load(f)
 
