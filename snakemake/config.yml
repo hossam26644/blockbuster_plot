@@ -1,7 +1,8 @@
-repeats: 100
-sequence_length: 10000000
-mutation_rate: 1
-recombination_rate: 0.0000001
+repeats: 10
+sequence_length: 23513712
+mutation_rate: 2.40463e-08
+recombination_rate: 2.40463e-08
 graph: "snakemake/graph.yml"
 output_file: "snakemake/combined_demes"
 branch_sfs: true
+blocks: 3
