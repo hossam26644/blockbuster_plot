@@ -29,7 +29,7 @@ if not branch_sfs:
     ts = msprime.sim_mutations(ts, rate=mutation_rate, random_seed=seed)
 mode = "branch" if branch_sfs else "site"
 # Get SFS
-sfs = ts.allele_frequency_spectrum(polarised=False, span_normalise=False, mode=mode)[1:-1]
+sfs = ts.allele_frequency_spectrum(polarised=True, span_normalise=True, mode=mode)[1:-1]
 
 # Write output
 with open(output_path, "w") as f:
