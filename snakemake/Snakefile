@@ -8,6 +8,7 @@ PRED_DIR = "snakemake/prediction"
 OUT_FILE=config["output_file"]
 GRAPH=config["graph"],
 BRANCH_SFS = config["branch_sfs"]
+FIXED_TIMES = config.get("fixed_times", None)  # optional
 
 
 # Ensure output dirs exist
@@ -36,9 +37,11 @@ rule plot_sfs:
         directory(f"{PRED_DIR}/test{{i}}")
     params:
         seq_len=config["sequence_length"],
-        mut=config["mutation_rate"]
+        mut=config["mutation_rate"],
+        fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
+
     shell:
-        "bash blockbuster_plot.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {params.mut} -T 4e11,4e10,4e11"
+        "bash blockbuster_plot.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {params.mut} {params.fixed_times}"
 
 rule anaylse:
     input:
