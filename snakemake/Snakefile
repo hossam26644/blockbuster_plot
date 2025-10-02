@@ -8,6 +8,7 @@ PRED_DIR = "snakemake/prediction"
 OUT_FILE=config["output_file"]
 GRAPH=config["graph"],
 BRANCH_SFS = config["branch_sfs"]
+BLOCKS = config["blocks"]
 FIXED_TIMES = config.get("fixed_times", None)  # optional
 
 
@@ -51,7 +52,10 @@ rule anaylse:
         png = f"{OUT_FILE}.png"
     shell:
         """
-        python snakemake/scripts/combine.py {PRED_DIR} {output.yml}
+        for i in $(seq 1 {REPEATS}); do
+            python snakemake/scripts/make_demes.py {PRED_DIR} $i
+        done
+        python snakemake/scripts/combine.py {PRED_DIR} {BLOCKS} {output.yml}
         python snakemake/scripts/drawcombined.py {output.yml} {GRAPH} {output.png}
         """
 
