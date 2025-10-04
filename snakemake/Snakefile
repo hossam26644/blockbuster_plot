@@ -10,6 +10,7 @@ GRAPH=config["graph"],
 BRANCH_SFS = config["branch_sfs"]
 BLOCKS = config["blocks"]
 FIXED_TIMES = config.get("fixed_times", None)  # optional
+SCALE= 1 / (2*config["sequence_length"])  # scaling factor for mutation rate
 
 
 # Ensure output dirs exist
@@ -42,7 +43,7 @@ rule plot_sfs:
         fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
 
     shell:
-        "bash blockbuster_plot.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {params.mut} {params.fixed_times}"
+        "bash blockbuster_plot.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {SCALE} {params.fixed_times}"
 
 rule anaylse:
     input:
