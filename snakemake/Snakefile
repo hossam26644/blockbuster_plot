@@ -10,8 +10,17 @@ GRAPH=config["graph"],
 BRANCH_SFS = config["branch_sfs"]
 BLOCKS = config["blocks"]
 FIXED_TIMES = config.get("fixed_times", None)  # optional
-SCALE= 1 / (2*config["sequence_length"])  # scaling factor for mutation rate
+SCALE = config["mutation_rate"]#1 / (2*config["sequence_length"])  # scaling factor for mutation rate
+TOOL = config.get("tool", "BLOCKBUSTER")  # optional
+STAIRWAYDIR = "/home/hossam26644/Documents/blockbuster_plot/stairway_plot_es"
 
+
+if TOOL == "BLOCKBUSTER":
+    final_input = f"{OUT_FILE}_blockbuster.yml"
+elif TOOL == "Stairway":
+    final_input = f"{OUT_FILE}_stairway.yml"
+else:
+    raise ValueError("config['tool'] must be 'tool1' or 'tool2'")
 
 # Ensure output dirs exist
 os.makedirs(SFS_DIR, exist_ok=True)
@@ -19,8 +28,8 @@ os.makedirs(PRED_DIR, exist_ok=True)
 
 rule all:
     input:
-        f"{OUT_FILE}_ci.png",
-        f"{OUT_FILE}_ci_end_time.csv"
+        #f"{OUT_FILE}.yml",
+        f"{OUT_FILE}.png"
 
 rule simulate_sfs:
     output:
@@ -32,11 +41,11 @@ rule simulate_sfs:
     shell:
         "python snakemake/scripts/simulate_sfs.py {wildcards.seed} {GRAPH} {params.seq_len} {params.mut} {params.rec} {output.sfs_file} {BRANCH_SFS}"
 
-rule plot_sfs:
+rule blockbuster:
     input:
         sfs_file = f"{SFS_DIR}/sfs_{{i}}.blk"
     output:
-        directory(f"{PRED_DIR}/test{{i}}")
+        directory(f"{PRED_DIR}/test_blockbuster{{i}}")
     params:
         seq_len=config["sequence_length"],
         mut=config["mutation_rate"],
@@ -45,21 +54,58 @@ rule plot_sfs:
     shell:
         "bash blockbuster_plot.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {SCALE} {params.fixed_times}"
 
-rule anaylse:
+rule post_process_blockbuster:
     input:
-        dirs = expand(f"{PRED_DIR}/test{{i}}", i=range(1, REPEATS + 1))
+        dirs = expand(f"{PRED_DIR}/test_blockbuster{{i}}", i=range(1, REPEATS + 1))
     output:
-        yml = f"{OUT_FILE}.yml",
-        png = f"{OUT_FILE}.png"
+        yml = f"{OUT_FILE}_blockbuster.yml",
     shell:
         """
         for i in $(seq 1 {REPEATS}); do
-            python snakemake/scripts/make_demes.py {PRED_DIR} $i
+            python snakemake/scripts/make_demes_blockbuster.py {PRED_DIR} $i
         done
-        python snakemake/scripts/combine.py {PRED_DIR} {BLOCKS} {output.yml}
-        python snakemake/scripts/drawcombined.py {output.yml} {GRAPH} {output.png}
+        python snakemake/scripts/combine_blockbuster.py {PRED_DIR} {BLOCKS} {output.yml}
         """
 
+rule stariway:
+    input:
+        sfs_file = f"{SFS_DIR}/sfs_{{i}}.blk"
+    output:
+        directory(f"{PRED_DIR}/test_stairway{{i}}")
+    params:
+        seq_len=config["sequence_length"],
+        mut=config["mutation_rate"],
+        fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
+
+    shell:
+        "python snakemake/scripts/stairway_blueprint.py {input.sfs_file} {output} {params.seq_len} {params.mut}"
+        "&& cd {output} && cp -r {STAIRWAYDIR} . "
+        "&&java -cp stairway_plot_es Stairbuilder model.blueprint"
+        "&& bash model.blueprint.sh"
+
+
+rule post_process_stariway:
+    input:
+        dirs = expand(f"{PRED_DIR}/test_stairway{{i}}", i=range(1, REPEATS + 1))
+    output:
+        yml = f"{OUT_FILE}_stairway.yml",
+    shell:
+        #TODO fix input to the stairwayplot_to_demes.py
+        """
+        for i in $(seq 1 {REPEATS}); do
+            python snakemake/scripts/stairwayplot_to_demes.py {PRED_DIR}/test_stairway$i/pop/pop.final.summary {PRED_DIR}/deme_$i.yml
+        done
+        python snakemake/scripts/combine_stairway.py {PRED_DIR} {output.yml}
+        """
+
+rule drawcombined:
+    input:
+        yml = final_input
+    output:
+        png = f"{OUT_FILE}.png"
+    shell:
+        "python snakemake/scripts/drawcombined.py {input.yml} {GRAPH} {output.png}"
+"""
 rule confidence_interval:
     input:
         yml = f"{OUT_FILE}.yml",
@@ -70,3 +116,4 @@ rule confidence_interval:
 
     shell:
         "python snakemake/scripts/confidence_interval.py {OUT_FILE}.yml {GRAPH} {OUT_FILE}_ci.png"
+"""

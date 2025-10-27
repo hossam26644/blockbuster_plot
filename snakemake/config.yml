@@ -2,7 +2,8 @@ repeats: 10
 sequence_length: 23513712
 mutation_rate: 2.40463e-08
 recombination_rate: 2.40463e-08
-graph: "snakemake/graph.yml"
+graph: "snakemake/DroMel_africa.yaml"
 output_file: "snakemake/combined_demes"
-branch_sfs: true
+branch_sfs: False
 blocks: 3
+tool: "Stairway"

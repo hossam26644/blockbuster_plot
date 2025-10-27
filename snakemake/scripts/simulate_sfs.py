@@ -15,22 +15,26 @@ branch_sfs = sys.argv[7]
 graph = demes.load(graph_path)
 demography = msprime.Demography.from_demes(graph)
 
+sfss = []
+for i in range(5):
 # Simulate tree sequence
-ts = msprime.sim_ancestry(
-    20,
-    random_seed=seed,
-    ploidy=1,
-    sequence_length=sequence_length,
-    recombination_rate=recombination_rate,
-    demography=demography,
-    model=msprime.SmcKApproxCoalescent()
-)
-if not branch_sfs:
-    ts = msprime.sim_mutations(ts, rate=mutation_rate, random_seed=seed)
-mode = "branch" if branch_sfs else "site"
-# Get SFS
-sfs = ts.allele_frequency_spectrum(polarised=True, span_normalise=True, mode=mode)[1:-1]
+    ts = msprime.sim_ancestry(
+        20,
+        random_seed=seed,
+        ploidy=1,
+        sequence_length=sequence_length,
+        recombination_rate=recombination_rate,
+        demography=demography,
+        model=msprime.SmcKApproxCoalescent(hull_offset=1)
+    )
+    if not branch_sfs:
+        ts = msprime.sim_mutations(ts, rate=mutation_rate, random_seed=seed)
+    mode = "branch" if branch_sfs else "site"
+    # Get SFS
+    sfs = ts.allele_frequency_spectrum(polarised=True, span_normalise=True, mode=mode)[1:-1]
+    sfss.append(sfs)
 
+sfs = [sum(x) / len(x) for x in zip(*sfss)]
 # Write output
 with open(output_path, "w") as f:
     f.write(" ".join(str(v) for v in sfs) + "\n")

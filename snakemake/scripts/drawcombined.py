@@ -29,21 +29,21 @@ def uniformise(ax, linewidth=2, linestyle='-'):
 
 
 # Create figure with 2 subplots side-by-side
-fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6), sharey=True)
+fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6), sharey=True, sharex=True)
 
 # Panel 1: Replicates
-demesdraw.size_history(replicates, ax=ax1, log_time=log_time, colours='red')
+demesdraw.size_history(replicates, ax=ax1, log_time=log_time, colours='red', log_size=True)
 ax1.set_title("Replicates")
 uniformise(ax1, linewidth=2, linestyle='-')
 
 # Panel 2: Original
-demesdraw.size_history(original, ax=ax2, log_time=log_time, colours='blue')
+demesdraw.size_history(original, ax=ax2, log_time=log_time, colours='blue', log_size=True)
 ax2.set_title("Original")
 uniformise(ax2, linewidth=2, linestyle='-')
 
 # Panel 3: Overlay
-demesdraw.size_history(replicates, ax=ax3, log_time=log_time, colours='red')
-demesdraw.size_history(original, ax=ax3, log_time=log_time, colours='blue')
+demesdraw.size_history(replicates, ax=ax3, log_time=log_time, colours='red', log_size=True)
+demesdraw.size_history(original, ax=ax3, log_time=log_time, colours='blue', log_size=True)
 ax3.set_title("Overlay")
 uniformise(ax3, linewidth=2, linestyle='-')
 

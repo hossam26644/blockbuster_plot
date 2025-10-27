@@ -50,12 +50,12 @@ def make_demes_yaml(eff_sizes, times):
 
 prediction_dir = sys.argv[1]
 run_no = sys.argv[2]
-input_file = f'{prediction_dir}/test{run_no}/parsed_output.txt'
+input_file = f'{prediction_dir}/test_blockbuster{run_no}/parsed_output.txt'
 blocks = parse_blocks(input_file)
 
 for block_id, data in blocks.items():
     demes_yaml = make_demes_yaml(data["eff_sizes"], data["times"])
-    out_file = f"{prediction_dir}/test{run_no}/demes_block{block_id}.yaml"
+    out_file = f"{prediction_dir}/test_blockbuster{run_no}/demes_block{block_id}.yaml"
     with open(out_file, "w") as out_f:
         yaml.dump(demes_yaml, out_f, sort_keys=False)
 
