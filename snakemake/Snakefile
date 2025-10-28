@@ -10,15 +10,19 @@ GRAPH=config["graph"],
 BRANCH_SFS = config["branch_sfs"]
 BLOCKS = config["blocks"]
 FIXED_TIMES = config.get("fixed_times", None)  # optional
-SCALE = config["mutation_rate"]#1 / (2*config["sequence_length"])  # scaling factor for mutation rate
+MUT = config["mutation_rate"]#1 / (2*config["sequence_length"])  # scaling factor for mutation rate
 TOOL = config.get("tool", "BLOCKBUSTER")  # optional
 STAIRWAYDIR = "/home/hossam26644/Documents/blockbuster_plot/stairway_plot_es"
 
+if BRANCH_SFS:
+    SCALE = 1 / (2*config["sequence_length"])
+else:
+    SCALE = config["mutation_rate"]
 
 if TOOL == "BLOCKBUSTER":
     final_input = f"{OUT_FILE}_blockbuster.yml"
 elif TOOL == "Stairway":
-    final_input = f"{OUT_FILE}_stairway.yml"
+    final_input = f"{OUT_FILE}_stairway_Ne_median.yml"
 else:
     raise ValueError("config['tool'] must be 'tool1' or 'tool2'")
 
@@ -78,7 +82,7 @@ rule stariway:
         fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
 
     shell:
-        "python snakemake/scripts/stairway_blueprint.py {input.sfs_file} {output} {params.seq_len} {params.mut}"
+        "python snakemake/scripts/stairway_blueprint.py {input.sfs_file} {output} {params.seq_len} {SCALE}"
         "&& cd {output} && cp -r {STAIRWAYDIR} . "
         "&&java -cp stairway_plot_es Stairbuilder model.blueprint"
         "&& bash model.blueprint.sh"
@@ -88,7 +92,7 @@ rule post_process_stariway:
     input:
         dirs = expand(f"{PRED_DIR}/test_stairway{{i}}", i=range(1, REPEATS + 1))
     output:
-        yml = f"{OUT_FILE}_stairway.yml",
+        yml = f"{OUT_FILE}_stairway_Ne_median.yml",
     shell:
         #TODO fix input to the stairwayplot_to_demes.py
         """

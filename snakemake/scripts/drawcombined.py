@@ -8,10 +8,6 @@ demesfile = sys.argv[1]
 original_graph = sys.argv[2]
 output_file = sys.argv[3]
 
-replicates = demes.load(demesfile)
-original = demes.load(original_graph)
-log_time = True
-
 def uniformise(ax, linewidth=2, linestyle='-'):
     # remove legend if present
     leg = ax.get_legend()
@@ -27,12 +23,25 @@ def uniformise(ax, linewidth=2, linestyle='-'):
         except Exception as e:
             print(f"Warning: could not remove path effects: {e}")
 
+replicates = demes.load(demesfile)
+original = demes.load(original_graph)
+log_time = True
+bounds = False
+
+if 'Ne_median' in demesfile:
+    lower_bound = demes.load(demesfile.replace("Ne_median.yml", "Ne_2.5.yml"))
+    upper_bound = demes.load(demesfile.replace("Ne_median.yml", "Ne_97.5.yml"))
+    bounds = True
 
 # Create figure with 2 subplots side-by-side
 fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6), sharey=True, sharex=True)
 
 # Panel 1: Replicates
 demesdraw.size_history(replicates, ax=ax1, log_time=log_time, colours='red', log_size=True)
+if bounds:
+    demesdraw.size_history(lower_bound, ax=ax1, log_time=log_time, colours='gray', log_size=True)
+    demesdraw.size_history(upper_bound, ax=ax1, log_time=log_time, colours='gray', log_size=True)
+
 ax1.set_title("Replicates")
 uniformise(ax1, linewidth=2, linestyle='-')
 
@@ -42,7 +51,10 @@ ax2.set_title("Original")
 uniformise(ax2, linewidth=2, linestyle='-')
 
 # Panel 3: Overlay
-demesdraw.size_history(replicates, ax=ax3, log_time=log_time, colours='red', log_size=True)
+#demesdraw.size_history(replicates, ax=ax3, log_time=log_time, colours='gray', log_size=True)
+if bounds:
+    demesdraw.size_history(lower_bound, ax=ax3, log_time=log_time, colours='gray', log_size=True)
+    demesdraw.size_history(upper_bound, ax=ax3, log_time=log_time, colours='gray', log_size=True)
 demesdraw.size_history(original, ax=ax3, log_time=log_time, colours='blue', log_size=True)
 ax3.set_title("Overlay")
 uniformise(ax3, linewidth=2, linestyle='-')
