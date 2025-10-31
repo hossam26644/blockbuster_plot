@@ -50,7 +50,7 @@ def make_demes_yaml(eff_sizes, times):
 
 prediction_dir = sys.argv[1]
 run_no = sys.argv[2]
-input_file = f'{prediction_dir}/test{run_no}/parsed_output.txt'
+input_file = f'{prediction_dir}/test{run_no}/scenarios.txt'
 blocks = parse_blocks(input_file)
 
 for block_id, data in blocks.items():

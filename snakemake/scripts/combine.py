@@ -13,8 +13,8 @@ time_units = None
 
 # Walk through all subdirectories
 for dirpath, dirnames, filenames in os.walk(root_dir):
-    if f"demes_block{blocks}.yaml" in filenames:
-        file_path = os.path.join(dirpath, f"demes_block{blocks}.yaml")
+    if f"{blocks}_epochs.yml" in filenames:
+        file_path = os.path.join(dirpath, f"{blocks}_epochs.yml")
         with open(file_path) as f:
             data = yaml.safe_load(f)
 
@@ -24,8 +24,9 @@ for dirpath, dirnames, filenames in os.walk(root_dir):
 
         if "demes" in data and len(data["demes"]) == 1:
             deme = data["demes"][0]
-            # Use the immediate directory name as the deme name
-            deme["name"] = os.path.basename(dirpath)
+            
+            name = file_path.split("/")[-3]
+            deme["name"] = os.path.basename(name)
             combined_demes.append(deme)
         else:
             print(f"Warning: {file_path} doesn't contain exactly one deme.")

@@ -1,0 +1,9 @@
+time_units: generations
+generation_time: 1
+demes:
+- name: AFR
+  description: African D. melanogaster population
+  epochs:
+  - {end_time: 2200000.0, start_size: 652700}
+  - {end_time: 200000.0, start_size: 145300.0}
+  - {end_time: 0, start_size: 544200.0}

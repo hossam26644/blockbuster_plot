@@ -11,6 +11,7 @@ BRANCH_SFS = config["branch_sfs"]
 BLOCKS = config["blocks"]
 FIXED_TIMES = config.get("fixed_times", None)  # optional
 SCALE= 1 / (2*config["sequence_length"])  # scaling factor for mutation rate
+#SCALE= config["mutation_rate"] # scaling factor for mutation rate
 
 
 # Ensure output dirs exist
@@ -43,7 +44,8 @@ rule plot_sfs:
         fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
 
     shell:
-        "bash blockbuster_plot.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {SCALE} {params.fixed_times}"
+        'bash blockbuster.sh --sfs {input.sfs_file} -p {output} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2'
+        
 
 rule anaylse:
     input:
@@ -53,9 +55,6 @@ rule anaylse:
         png = f"{OUT_FILE}.png"
     shell:
         """
-        for i in $(seq 1 {REPEATS}); do
-            python snakemake/scripts/make_demes.py {PRED_DIR} $i
-        done
         python snakemake/scripts/combine.py {PRED_DIR} {BLOCKS} {output.yml}
         python snakemake/scripts/drawcombined.py {output.yml} {GRAPH} {output.png}
         """
@@ -70,3 +69,5 @@ rule confidence_interval:
 
     shell:
         "python snakemake/scripts/confidence_interval.py {OUT_FILE}.yml {GRAPH} {OUT_FILE}_ci.png"
+
+#bash blockbuster.sh --sfs snakemake/sfss/sfs_1.blk -p test_new -L 23513712  -m 0.000000021 -P "0,0,0|0.4042631385520029,4.042631385520029"
