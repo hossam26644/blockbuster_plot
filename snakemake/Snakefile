@@ -1,4 +1,5 @@
 import os
+from distutils.util import strtobool
 
 configfile: "snakemake/config.yml"
 
@@ -7,12 +8,16 @@ SFS_DIR = "snakemake/sfss"
 PRED_DIR = "snakemake/prediction"
 OUT_FILE=config["output_file"]
 GRAPH=config["graph"],
-BRANCH_SFS = config["branch_sfs"]
+BRANCH_SFS = bool(strtobool(str(config["branch_sfs"])))
 BLOCKS = config["blocks"]
 FIXED_TIMES = config.get("fixed_times", None)  # optional
-SCALE= 1 / (2*config["sequence_length"])  # scaling factor for mutation rate
-#SCALE= config["mutation_rate"] # scaling factor for mutation rate
 
+if BRANCH_SFS:
+    print("Using branch SFS")
+    SCALE= 1 / (2*config["sequence_length"])  # scaling factor for mutation rate
+else: 
+    SCALE= config["mutation_rate"] # scaling factor for mutation rate
+    print("Using site SFS (mutations)")
 
 # Ensure output dirs exist
 os.makedirs(SFS_DIR, exist_ok=True)
