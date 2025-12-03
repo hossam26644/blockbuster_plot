@@ -17,3 +17,4 @@ snakemake/combined_demes.png
 snakemake/combined_demes.yml
 plot_sfs.ipynb
 results/
+to_send/

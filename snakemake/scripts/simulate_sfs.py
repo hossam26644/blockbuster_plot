@@ -11,6 +11,7 @@ recombination_rate = float(sys.argv[5])
 output_path = sys.argv[6]
 branch_sfs = sys.argv[7]
 
+branch_sfs = False
 # Load demography
 graph = demes.load(graph_path)
 demography = msprime.Demography.from_demes(graph)
@@ -29,7 +30,7 @@ if not branch_sfs:
     ts = msprime.sim_mutations(ts, rate=mutation_rate, random_seed=seed)
 mode = "branch" if branch_sfs else "site"
 # Get SFS
-sfs = ts.allele_frequency_spectrum(polarised=True, span_normalise=True, mode=mode)[1:-1]
+sfs = ts.allele_frequency_spectrum(polarised=True, span_normalise=branch_sfs, mode=mode)[1:-1]
 
 # Write output
 with open(output_path, "w") as f:
