@@ -57,6 +57,14 @@ snake:
 
 snakeclean:
 	rm -r .snakemake snakemake/sfss snakemake/prediction snakemake/combined_demes.yml snakemake/combined_demes.png snakemake/combined_demes_ci.png snakemake/combined_demes_ci_end_time.csv
+
+boxplot:
+	cd box_plot_figure && snakemake --cores 16 --directory .. --force --keep-incomplete  --rerun-incomplete
+
+boxplotclean:
+	rm -r .snakemake pipeline_y_output.txt box_plot_figure/snakemake box_plot_figure/.snakemake box_plot_figure/predict_one_set/snakemake box_plot_figure/predict_one_set/.snakemake box_plot_figure/combined_demes_*
+
+
 theoriticalSFS:
 	./bin/blockbuster_simulator -n 20 -t 4e6 -f 1 -e 0 -p 1e-2,1e-1,0.1,1 -o sfs_2.blk
 

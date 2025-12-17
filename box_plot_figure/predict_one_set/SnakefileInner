@@ -1,0 +1,107 @@
+import os
+from distutils.util import strtobool
+
+#configfile: "snakemake/config.yml"
+
+REPEATS = config["repeats"]
+SFS_DIR = "sfss"
+PRED_DIR = "prediction"
+OUT_DIR=config["output_dir"]
+GRAPH=config["graph"],
+BRANCH_SFS = bool(strtobool(str(config["branch_sfs"])))
+BLOCKS = config["blocks"]
+FIXED_TIMES = config.get("fixed_times", None)  # optional
+
+if BRANCH_SFS:
+    print("Using branch SFS")
+    SCALE= 1 / (2*config["sequence_length"])  # scaling factor for mutation rate
+else: 
+    SCALE= config["mutation_rate"] # scaling factor for mutation rate
+    print("Using site SFS (mutations)")
+
+# Ensure output dirs exist
+os.makedirs(SFS_DIR, exist_ok=True)
+os.makedirs(PRED_DIR, exist_ok=True)
+
+rule all:
+    input:
+        f"{OUT_DIR}/results_ci.png",
+        f"{OUT_DIR}/results_ci_end_time.csv"
+
+rule simulate_sfs:
+    output:
+        sfs_file = f"{SFS_DIR}/sfs_{{seed}}.blk"
+    params:
+        seq_len=config["sequence_length"],
+        mut=config["mutation_rate"],
+        rec=config["recombination_rate"]
+    shell:
+        "pwd; "
+        "python ../predict_one_set/scripts/simulate_sfs.py {wildcards.seed} {GRAPH} {params.seq_len} {params.mut} {params.rec} {output.sfs_file} {BRANCH_SFS}"
+
+rule plot_sfs:
+    input:
+        sfs_file = f"{SFS_DIR}/sfs_{{i}}.blk"
+    output:
+        result_dir = directory(f"{PRED_DIR}/test{{i}}"),
+        status = f"{PRED_DIR}/test{{i}}_status.txt"
+    params:
+        seq_len=config["sequence_length"],
+        mut=config["mutation_rate"],
+        fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
+    shell:
+        """
+        if bash /home/hossam26644/Documents/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2; then
+            echo "SUCCESS" > {output.status}
+        else
+            echo "FAILED" > {output.status}
+            mkdir -p {output.result_dir}
+        fi
+        """
+
+rule collect_successful_runs:
+    input:
+        dirs = expand(f"{PRED_DIR}/test{{i}}", i=range(1, REPEATS + 1)),
+        statuses = expand(f"{PRED_DIR}/test{{i}}_status.txt", i=range(1, REPEATS + 1))
+    output:
+        successful_list = f"{OUT_DIR}/successful_runs.txt"
+    run:
+        successful_runs = []
+        for i, status_file in enumerate(input.statuses, start=1):
+            with open(status_file, 'r') as f:
+                if "SUCCESS" in f.read():
+                    successful_runs.append(str(i))
+        
+        with open(output.successful_list, 'w') as f:
+            f.write('\n'.join(successful_runs))
+        
+        print(f"Successful runs: {len(successful_runs)}/{REPEATS}")
+        if len(successful_runs) == 0:
+            raise ValueError("All runs failed!")
+
+rule anaylse:
+    input:
+        dirs = expand(f"{PRED_DIR}/test{{i}}", i=range(1, REPEATS + 1)),
+        successful_list = f"{OUT_DIR}/successful_runs.txt"
+    output:
+        yml = f"{OUT_DIR}/results.yml",
+        png = f"{OUT_DIR}/results.png"
+    shell:
+        """
+        python ../predict_one_set/scripts/combine.py {PRED_DIR} {BLOCKS} {output.yml} {input.successful_list}
+        python ../predict_one_set/scripts/drawcombined.py {output.yml} {GRAPH} {output.png}
+        """
+
+rule confidence_interval:
+    input:
+        yml = f"{OUT_DIR}/results.yml",
+        png = f"{OUT_DIR}/results.png"
+    output:
+        ci_yml = f"{OUT_DIR}/results_ci.png",
+        csv = f"{OUT_DIR}/results_ci_end_time.csv"
+
+    shell:
+        "python ../predict_one_set/scripts/confidence_interval.py {OUT_DIR}/results.yml {GRAPH} {OUT_DIR}/results_ci.png"
+
+        
+#bash blockbuster.sh --sfs snakemake/sfss/sfs_1.blk -p test_new -L 23513712  -m 0.000000021 -P "0,0,0|0.4042631385520029,4.042631385520029"

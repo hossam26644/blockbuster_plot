@@ -1,9 +1,9 @@
 repeats: 10
-sequence_length: 2351371
+sequence_length: 23513712
 mutation_rate: 2.40463e-08
 recombination_rate: 2.40463e-08
-graph: "snakemake/demes/graph.yml"
+graph: "snakemake/demes/DroMel_OOF_modified.yml"
 output_file: "snakemake/combined_demes"
-branch_sfs: false
+branch_sfs: True
 blocks: 2
 

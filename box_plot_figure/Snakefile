@@ -1,0 +1,88 @@
+import os
+import yaml
+
+configfile: "box_plot_figure/config.yml"
+
+OUT_DIR = config["output_dir"]
+SEQ_LENGTHS = config["seq_lengths"]  # Assuming this is a list in your config
+
+# Read the base config for pipeline X
+with open("box_plot_figure/config.yml", 'r') as f:
+    base_inner_config = yaml.safe_load(f)
+
+threads_per_seq = max(4, int(16/len(SEQ_LENGTHS)))
+print(f"Allocating {threads_per_seq} threads per sequence length")
+
+rule all:
+    input:
+        f"{OUT_DIR}_done.txt"
+        
+
+
+rule create_inner_config:
+    output:
+        config_file = "{output}_seq_{seq_length}/config.yml"
+    params:
+        output_name = lambda wildcards: f"{wildcards.output}_seq_{wildcards.seq_length}",
+        seq_length = lambda wildcards: int(wildcards.seq_length)
+    run:
+        # Copy base config and update parameters
+        inner_config = base_inner_config.copy()
+        inner_config["sequence_length"] = params.seq_length
+        inner_config["output_dir"] = params.output_name
+        del inner_config["seq_lengths"]  # Remove seq_lengths to avoid confusion
+        # Create directory and write config
+        os.makedirs(os.path.dirname(output.config_file), exist_ok=True)
+        with open(output.config_file, 'w') as f:
+            yaml.dump(inner_config, f)
+
+
+rule run_pipeline_x:
+    input:
+        config_file = "{output}_seq_{seq_length}/config.yml"
+    output:
+        result = "{output}_seq_{seq_length}/results.png",
+        status = "{output}_seq_{seq_length}/status.txt"
+    params:
+        workdir = "{output}_seq_{seq_length}",
+        snakefile = "box_plot_figure/predict_one_set/SnakefileInner"
+    shell:
+        """
+        if snakemake -s {params.snakefile} \
+            --configfile {input.config_file} \
+            --cores {threads_per_seq} \
+            --directory {params.workdir} \
+            {output.result}; then
+            echo "SUCCESS" > {output.status}
+        else
+            echo "FAILED" > {output.status}
+            touch {output.result}  # Create empty placeholder
+        fi
+        """
+
+
+rule run_pipeline_y:
+    input:
+        results = expand("{output}_seq_{seq_length}/results.png", 
+                        output=OUT_DIR, 
+                        seq_length=SEQ_LENGTHS),
+        statuses = expand("{output}_seq_{seq_length}/status.txt",
+                         output=OUT_DIR,
+                         seq_length=SEQ_LENGTHS)
+    output:
+        "{output}_done.txt"
+    run:
+        # Check which runs succeeded
+        failed_runs = []
+        for status_file in input.statuses:
+            with open(status_file, 'r') as f:
+                if "FAILED" in f.read():
+                    seq_len = status_file.split("_seq_")[1].split("/")[0]
+                    failed_runs.append(seq_len)
+        
+        with open(output[0], 'w') as f:
+            f.write("Pipeline completed\n")
+            if failed_runs:
+                f.write(f"Failed sequence lengths: {', '.join(failed_runs)}\n")
+            else:
+                f.write("All runs succeeded\n")

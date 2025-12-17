@@ -1,0 +1,8 @@
+repeats: 100
+mutation_rate: 2.40463e-08
+recombination_rate: 2.40463e-08
+graph: "/home/hossam26644/Documents/blockbuster_plot/box_plot_figure/predict_one_set/demes/DroMel_OOF_modified.yml"
+output_dir: "/home/hossam26644/Documents/blockbuster_plot/box_plot_figure/combined_demes"
+branch_sfs: True
+blocks: 2
+seq_lengths: [10, 100, 1000]

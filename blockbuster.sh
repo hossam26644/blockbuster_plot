@@ -119,7 +119,7 @@ echo ./bin/blockbuster_main --sfs "$SFS_FILE" -p "$OUTPUT_DIR" -o "$ORIENTED" -b
     -u "$UPPER_BOUND" -l "$LOWER_BOUND" -e "$EPOCHS" -n "$GRID_SIZE" \
     -S "$SING" -t "$TRONC"
 
-./bin/blockbuster_main --sfs "$SFS_FILE" -p "$OUTPUT_DIR" -o "$ORIENTED" -b "$NUM_BLOCKS" \
+/home/hossam26644/Documents/blockbuster_plot/bin/blockbuster_main --sfs "$SFS_FILE" -p "$OUTPUT_DIR" -o "$ORIENTED" -b "$NUM_BLOCKS" \
     -u "$UPPER_BOUND" -l "$LOWER_BOUND" -e "$EPOCHS" -n "$GRID_SIZE" -P "$THETA_LIST"\
     -S "$SING" -t "$TRONC" -L "$GENOME_LENGTH" -m "$MUTATION_RATE" -g "$GENERATION_TIME" -P "$THETA_LIST"
 
@@ -139,7 +139,7 @@ echo ">>>> Running Python program: plotting"
 echo ""
 START_TIME_PYTHON=$(date +%s)
 
-python3 parseandplot.py -i "$OUTPUT_DIR/scenarios.txt" -o "$OUTPUT_DIR" \
+python3 /home/hossam26644/Documents/blockbuster_plot/parseandplot.py -i "$OUTPUT_DIR/scenarios.txt" -o "$OUTPUT_DIR" \
     -g "$GENERATION_TIME" -or "$ORIENTED"
 
 if [ $? -ne 0 ]; then

@@ -1,0 +1,9 @@
+repeats: 1
+sequence_length: 23513712
+mutation_rate: 2.40463e-08
+recombination_rate: 2.40463e-08
+graph: "box_plot_figure/predict_one_set/demes/DroMel_OOF_modified.yml"
+output_file: "box_plot_figure/combined_demes"
+branch_sfs: True
+blocks: 2
+

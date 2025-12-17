@@ -1,7 +1,7 @@
 import os
 from distutils.util import strtobool
 
-configfile: "snakemake/config.yml"
+#configfile: "snakemake/config.yml"
 
 REPEATS = config["repeats"]
 SFS_DIR = "snakemake/sfss"
