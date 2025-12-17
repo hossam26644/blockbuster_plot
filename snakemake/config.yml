@@ -1,8 +1,9 @@
 repeats: 10
-sequence_length: 23513712
+sequence_length: 2351371
 mutation_rate: 2.40463e-08
 recombination_rate: 2.40463e-08
-graph: "snakemake/graph.yml"
+graph: "snakemake/demes/graph.yml"
 output_file: "snakemake/combined_demes"
-branch_sfs: true
-blocks: 3
+branch_sfs: false
+blocks: 2
+
