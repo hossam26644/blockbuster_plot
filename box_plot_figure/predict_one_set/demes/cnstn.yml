@@ -1,0 +1,7 @@
+time_units: generations
+demes:
+  - name: B
+    start_time:  .inf
+    epochs:
+      - start_size: 1e5
+        end_time: 0

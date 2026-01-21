@@ -1,5 +1,6 @@
 import os
 from distutils.util import strtobool
+import demes
 
 #configfile: "snakemake/config.yml"
 
@@ -7,21 +8,50 @@ REPEATS = config["repeats"]
 SFS_DIR = "sfss"
 PRED_DIR = "prediction"
 OUT_DIR=config["output_dir"]
-GRAPH=config["graph"],
+GRAPH=config["graph"]
 BRANCH_SFS = bool(strtobool(str(config["branch_sfs"])))
-BLOCKS = config["blocks"]
+BLOCKS = config.get("blocks", None)
 FIXED_TIMES = config.get("fixed_times", None)  # optional
 
 if BRANCH_SFS:
     print("Using branch SFS")
     SCALE= 1 / (2*config["sequence_length"])  # scaling factor for mutation rate
 else: 
-    SCALE= config["mutation_rate"] # scaling factor for mutation rate
+    SCALE= 0.5*config["mutation_rate"] # scaling factor for mutation rate
+    #SCALE=  1 / (2*config["sequence_length"]) 
     print("Using site SFS (mutations)")
 
 # Ensure output dirs exist
 os.makedirs(SFS_DIR, exist_ok=True)
 os.makedirs(PRED_DIR, exist_ok=True)
+
+print("Using graph:", GRAPH)
+#get P string
+graph_data = demes.load(f"{GRAPH}")
+
+
+epochs = graph_data.demes[0].epochs
+if BLOCKS is None:
+    BLOCKS = len(epochs)
+    n_epochs = len(epochs)
+else:
+    n_epochs = BLOCKS
+
+Ne0 = epochs[-1].start_size
+theta0 = 4*Ne0*SCALE*config["sequence_length"]
+
+# Build -P string
+zeros = ",".join(["0"] * (n_epochs - 1))
+P_STRING = f'{theta0}'
+if n_epochs > 1:
+    P_STRING += f',{zeros}|{zeros}'
+else:
+    P_STRING += '|'
+
+print("Using -P:", P_STRING)
+
+"""BOXPLOTSTRT = epochs[1].start_time
+BOXPLOTEND = epochs[1].end_time"""
 
 rule all:
     input:
@@ -51,7 +81,7 @@ rule plot_sfs:
         fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
     shell:
         """
-        if bash /home/hossam26644/Documents/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2; then
+        if bash /home/hossam26644/Documents/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2 -P "{P_STRING}"; then
             echo "SUCCESS" > {output.status}
         else
             echo "FAILED" > {output.status}
@@ -89,6 +119,7 @@ rule anaylse:
     shell:
         """
         python ../predict_one_set/scripts/combine.py {PRED_DIR} {BLOCKS} {output.yml} {input.successful_list}
+        echo "python ../predict_one_set/scripts/combine.py {PRED_DIR} {BLOCKS} {output.yml} {input.successful_list}"
         python ../predict_one_set/scripts/drawcombined.py {output.yml} {GRAPH} {output.png}
         """
 
@@ -104,4 +135,8 @@ rule confidence_interval:
         "python ../predict_one_set/scripts/confidence_interval.py {OUT_DIR}/results.yml {GRAPH} {OUT_DIR}/results_ci.png"
 
         
-#bash blockbuster.sh --sfs snakemake/sfss/sfs_1.blk -p test_new -L 23513712  -m 0.000000021 -P "0,0,0|0.4042631385520029,4.042631385520029"
+#bash blockbuster.sh --sfs snakemake/sfss/sfs_1.blk -p test_new -L 23513712  -m 0.000000021 -P "0,0,0|0.4042631385520029,4.042631385520029
+# Theta is simply 2 Ne in this context
+# and time is simply time/first pop size
+#EU
+#        if bash /home/hossam26644/Documents/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2 -P "940460.6,0,0|0.063798526,0.797481574"; then

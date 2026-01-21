@@ -2,12 +2,15 @@ import yaml
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import List, Dict, Tuple
+import argparse
+import os 
+from matplotlib.patches import Patch
+
 
 
 class DemesAnalyzer:
-    """Analyze and visualize population size envelopes from demes YAML files."""
     
-    def __init__(self, demes_file):
+    def __init__(self, demes_file, min_time=0, max_time=float('inf')):
         """
         Initialize with a demes file.
         
@@ -17,7 +20,10 @@ class DemesAnalyzer:
         self.data = self._load_yaml(demes_file)
         self.deme_data = self._parse_demes()
         self.time_points = self._extract_time_points()
-    
+        self._total_envelope_area = None
+        self.min_time = min_time
+        self.max_time = max_time
+        
     def _load_yaml(self, demes_file) -> Dict:
         """Load YAML from file or string."""
         if isinstance(demes_file, str) and '\n' in demes_file:
@@ -49,31 +55,42 @@ class DemesAnalyzer:
         
         return deme_data
     
-    def _extract_time_points(self) -> List[float]:
+    def _extract_time_points(self, deme_data=None) -> List[float]:
         """Extract all unique time points and sort them."""
         time_points = set()
         
-        for deme in self.deme_data:
+        if deme_data is None:
+            deme_data = self.deme_data
+        for deme in deme_data:
             for epoch in deme['epochs']:
                 if epoch['end_time'] != float('inf'):
                     time_points.add(epoch['end_time'])
                 if epoch['start_time'] != float('inf'):
                     time_points.add(epoch['start_time'])
-        time_points.add(max(time_points)*1.25)
+        time_points.add(max(time_points)*3)
         return sorted([t for t in time_points if t != float('inf')], reverse=True)
     
-    def _get_sizes_at_interval(self, t_start: float, t_end: float) -> List[float]:
+    def _get_sizes_at_interval(self, t_start: float, t_end: float, deme_data=None) -> List[float]:
         """Get population sizes for all demes in a time interval."""
-        sizes = []
         
-        for deme in self.deme_data:
+        if deme_data is None:
+            deme_data = self.deme_data
+        sizes = []
+        for deme in deme_data:
             for epoch in deme['epochs']:
                 if epoch['start_time'] >= t_start and epoch['end_time'] <= t_end:
                     sizes.append(epoch['size'])
                     break
         
         return sizes
-    
+      
+    @property
+    def total_envelope_area(self) -> float:
+        """Calculate and cache total envelope area."""
+        if self._total_envelope_area is None:
+            self._total_envelope_area = self.calculate_envelope_area()
+        return self._total_envelope_area
+
     def calculate_envelope_area(self, lower_percentile: float = 2.5, 
                                 upper_percentile: float = 97.5) -> float:
         """
@@ -91,6 +108,10 @@ class DemesAnalyzer:
         for i in range(len(self.time_points) - 1):
             t_start = self.time_points[i]
             t_end = self.time_points[i + 1]
+
+            if t_end < self.min_time or t_start > self.max_time:
+                continue
+
             interval_width = t_start - t_end
             
             sizes = self._get_sizes_at_interval(t_start, t_end)
@@ -101,11 +122,6 @@ class DemesAnalyzer:
                 height = p_upper - p_lower
                 area = interval_width * height
                 total_area += area
-                
-                """print(f"Time [{t_end:.2f}, {t_start:.2f}]: "
-                      f"p{lower_percentile}={p_lower:.2f}, "
-                      f"p{upper_percentile}={p_upper:.2f}, "
-                      f"area={area:.2f}")"""
         
         return total_area
     
@@ -130,6 +146,9 @@ class DemesAnalyzer:
         for i in range(len(self.time_points) - 1):
             t_start = self.time_points[i]
             t_end = self.time_points[i + 1]
+
+            if t_end < self.min_time or t_start > self.max_time:
+                continue
             
             sizes = self._get_sizes_at_interval(t_start, t_end)
             
@@ -148,11 +167,22 @@ class DemesAnalyzer:
         
         return (np.array(times), np.array(means), 
                 np.array(lower_bounds), np.array(upper_bounds))
+
+
+class EnvelopePlotter:
+    """Analyze and visualize population size envelopes from demes YAML files."""
     
+    def __init__(self, combined_simulations_file, original_deme_file):
+        self.original = DemesAnalyzer(original_deme_file)
+        self.min_time = min(self.original.time_points)
+        self.max_time = max(self.original.time_points)
+        self.combined_simulations = DemesAnalyzer(combined_simulations_file,
+            min_time=self.min_time, max_time=self.max_time)   
+
     def plot_envelope(self, lower_percentile: float = 2.5,
                      upper_percentile: float = 97.5,
                      figsize: Tuple[int, int] = (10, 6),
-                     original_deme_file: str = None):
+                     plot_file_name: str = "deme_envelope_plot.png"):
         """
         Plot population size with percentile envelope.
         
@@ -162,7 +192,7 @@ class DemesAnalyzer:
             figsize: Figure size as (width, height)
         """
 
-        times, means, lower, upper = self.get_envelope_data(
+        times, means, lower, upper = self.combined_simulations.get_envelope_data(
             lower_percentile, upper_percentile
         )
         
@@ -172,10 +202,8 @@ class DemesAnalyzer:
         ax.fill_between(times, lower, upper, alpha=0.3, color='gray', 
                         label=f'{lower_percentile}th-{upper_percentile}th percentile')
 
-        if original_deme_file:
-            original_analyzer = DemesAnalyzer(original_deme_file)
-            orig_times, orig_means, _, _ = original_analyzer.get_envelope_data(0, 100)
-            ax.plot(orig_times, orig_means, color='blue', linewidth=2, label='Original deme')
+        orig_times, orig_means, _, _ = self.original.get_envelope_data(0, 100)
+        ax.plot(orig_times, orig_means, color='blue', linewidth=2, label='Original deme')
         
         # Plot mean line
         ax.plot(times, means, linestyle="--"  ,color='black', linewidth=2, label='Mean', alpha=0.7)
@@ -191,19 +219,193 @@ class DemesAnalyzer:
         #ax.invert_xaxis()
         
         plt.tight_layout()
-        return fig, ax
+        plt.savefig(plot_file_name)
+
+class BoxPlotter:
+    
+    def __init__(self, successful_runs: List[str], original_deme_file: str, prefix: str = ""):
+        self.successful_runs = successful_runs
+        self.original = DemesAnalyzer(original_deme_file)
+        self.min_time = min(self.original.time_points)
+        self.max_time = max(self.original.time_points)
+
+        #dir_path = os.path.dirname(os.path.realpath(__file__))
+        self.deme_per_seq = {s: DemesAnalyzer(f"{prefix}_seq_{s}/results.yml", min_time=self.min_time, max_time=self.max_time) for s in successful_runs}        
+
+    def mse_errors_between_time_points(self,  start_time: float, end_time: float) -> Dict[str, List[float]]:
+        """
+        Calculate MSE errors between the demes of this demes analyzer and the original deme,
+        between specified time points.
+        Args:
+            start_time: Start time for MSE calculation
+            end_time: End time for MSE calculation
+        Returns:
+            List of MSE errors for each deme
+        
+        """
+        mse_errors = {}
+
+        for seq, deme_per_seq in self.deme_per_seq.items():
+            for deme in deme_per_seq.deme_data:
+                time_points = deme_per_seq._extract_time_points(deme_data=[deme])
+
+                for i in range(len(deme_per_seq.time_points) - 1):
+                    t_start = deme_per_seq.time_points[i]
+                    t_end = deme_per_seq.time_points[i + 1]
+                    #scale is the ratio between the time between the time points and the time between start and end
+                    scale = (t_start - t_end) / (end_time - start_time)
+                    if t_end < deme_per_seq.min_time or t_start > deme_per_seq.max_time:
+                        continue
+
+                    if t_end < start_time or t_start > end_time:
+                        continue
+                    t_start = max(t_start, start_time) #TODO add this to envelope
+                    t_end = min(t_end, end_time)
+
+                    sizes = deme_per_seq._get_sizes_at_interval(t_start, t_end, deme_data=[deme])
+                    assert len(sizes) == 1, "Expected exactly one size for the deme in the interval."
+                    size = sizes[0]
+
+                    orig_sizes = self.original._get_sizes_at_interval(t_start, t_end)
+
+                    assert len(orig_sizes) == 1, "Expected exactly one size for the original deme in the interval."
+                    orig_size = orig_sizes[0]
+                    mse = (size - orig_size) ** 2
+                    if seq not in mse_errors:
+                        mse_errors[seq] = []
+                    mse_errors[seq].append(mse*scale)
+        
+        return mse_errors            
+                        
+    def sizes_in_a_time_window(self,  start_time: float, end_time: float) -> Dict[str, List[float]]:
+        """
+        Calculate MSE errors between the demes of this demes analyzer and the original deme,
+        between specified time points.
+        Args:
+            start_time: Start time for MSE calculation
+            end_time: End time for MSE calculation
+        Returns:
+            List of MSE errors for each deme
+        
+        """
+        sizes_per_seq = {}
+
+        for seq, deme_per_seq in self.deme_per_seq.items():
+            sizes_per_seq[seq] = []
+            for deme in deme_per_seq.deme_data:
+                sizes_per_epoch = []
+                scales = []
+                for epoch in deme['epochs']:
+                    e_start = epoch['start_time']
+                    e_end = epoch['end_time']
+
+                    if not max(e_end, end_time) <= min(e_start, start_time):
+                        s=1
+                        continue
+                    
+                    e_start = min(e_start, start_time) #TODO add this to envelope
+                    e_end = max(e_end, end_time) #since we go backwards in time
+
+                    sizes = deme_per_seq._get_sizes_at_interval(e_start, e_end, deme_data=[deme])
+                    assert len(sizes) == 1, "Expected exactly one size for the deme in the interval."
+                    size = sizes[0]
+
+                    orig_sizes = self.original._get_sizes_at_interval(e_start, e_end)
+                    assert len(orig_sizes) == 1, "Expected exactly one size for the original deme in the interval."
+                    orig_size = orig_sizes[0]
+                    
+                    sizes_per_epoch.append(size)
+                    scales.append((e_start - e_end) / (start_time - end_time))
+                    #scales.append(1)
+                
+                
+                if len(scales) >1:
+                    s=1
+                scaled_size = sum([(s * scale)/np.sum(scales) for s, scale in zip(sizes_per_epoch, scales)])
+                sizes_per_seq[seq].append(scaled_size)
+        
+        return sizes_per_seq  
+
+    def draw_sizes_per_seq(self, start_time: float, end_time: float,
+                            plot_file_name: str = "deme_boxplot_plot.png"):
+        """
+        Plot boxplot of population sizes per sequence in a time window.
+
+        Args:
+            start_time: Start time for size calculation
+            end_time: End time for size calculation
+        """
+
+        sizes_per_seq = self.sizes_in_a_time_window(start_time, end_time)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        keys = sorted(sizes_per_seq, key=lambda k: (int(k.split('_')[0]), k.split('_')[1]))
+
+        data, pos = [], []
+        x = 1
+        prev_i = None
+        ticks = []
+        for k in keys:
+            i = int(k.split('_')[0])
+            ticks.append(f"{i}\n{k.split('_')[1]}")
+            if prev_i is not None and i != prev_i:
+                x += 0.4          # bigger gap between different ints
+            data.append(sizes_per_seq[k])
+            pos.append(x)
+            x += 0.2            # very small gap within same int
+            prev_i = i
+            
+        bp = ax.boxplot(data, positions=pos, widths=0.15,
+                        showfliers=False, patch_artist=True)
+
+        # color by suffix
+        suffixes = [k.split('_')[1] for k in keys]
+        colors = dict(zip(sorted(set(suffixes)), plt.cm.tab10.colors))
+
+        for box, suf in zip(bp['boxes'], suffixes):
+            box.set_facecolor(colors[suf])
+
+        ax.set_xticks(pos)
+        ax.set_xticklabels(ticks)
+        handles = [Patch(facecolor=colors[s], label=s) for s in sorted(colors)]
+        #ax.legend(handles=handles)
 
 
-# Example usage
+        orig_sizes = self.original._get_sizes_at_interval(start_time, end_time)
+        assert len(orig_sizes) == 1, "Expected exactly one size for the original deme in the interval."
+        ax.axhline(y=orig_sizes[0], color='red', linestyle='--', label='Original deme size')
+
+        ax.set_xlabel('Sequence', fontsize=12)
+        ax.set_ylabel('Population Size', fontsize=12)
+        ax.set_title(f'Population Sizes Across Sequences ({start_time}-{end_time} generations)', fontsize=14, fontweight='bold')
+        #ax.set_yscale('log')
+
+        ax.grid(True, alpha=0.3)
+
+        plt.tight_layout()
+        plt.savefig(plot_file_name)
+
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Analyze and plot population size envelopes from demes YAML files.")
+    parser.add_argument("function", type=str, nargs='?', default="envelope", 
+                        choices=["envelope", "boxplot"],
+                        help="Function to run: 'envelope' or 'boxplot' (default: envelope)")
+    parser.add_argument("-d", type=str, help="Path to the combined demes YAML file.")
+    parser.add_argument("-r", type=str, help="Path to the original deme YAML file for comparison.")
+    parser.add_argument("-o", type=str, default="deme_envelope_plot.png", help="Output plot file name.")
+    parser.add_argument("-s", nargs='+', type=str, default=None, help="list of successful runs")
+    parser.add_argument("-p", type=str, default="", help="prefix of the file names")
     
-    # Create analyzer
-    analyzer = DemesAnalyzer("box_plot_figure/combined_demes_seq_1000/results.yml")
+    args = parser.parse_args()
     
-    # Calculate area
-    total_area = analyzer.calculate_envelope_area()
-    print(f"\nTotal area: {total_area:.2f}")
+    if args.function == "envelope":
+        envelope = EnvelopePlotter(args.d, args.r)
+        envelope.plot_envelope(plot_file_name=args.o)
     
-    # Plot envelope
-    analyzer.plot_envelope(original_deme_file="/home/hossam26644/Documents/blockbuster_plot/box_plot_figure/predict_one_set/demes/DroMel_OOF_modified.yml")
-    plt.show()
+    elif args.function == "boxplot":
+        boxplot = BoxPlotter(args.s, args.r, prefix=args.p)
+        #boxplot.draw_sizes_per_seq(start_time=675000, end_time=80000, plot_file_name=args.o)
+        middle_epoch = boxplot.original.deme_data[0]["epochs"][1]
+        start_time = middle_epoch["start_time"]
+        end_time = middle_epoch["end_time"]
+        boxplot.draw_sizes_per_seq(start_time=start_time, end_time=end_time, plot_file_name=args.o)

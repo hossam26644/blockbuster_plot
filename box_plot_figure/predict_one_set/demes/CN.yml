@@ -4,8 +4,8 @@ demes:
 - name: EUR
   description: European D. melanogaster population
   epochs:
-  - {end_time: 20000, start_size: 1000000}
-  - {end_time: 11200, start_size: 200000}
-  - {end_time: 9400, start_size: 36215.63}
-  - {end_time: 2500, start_size: 290000}
-  - {end_time: 400, start_size: 441007.7}
+  - {end_time: 300000, start_size: 1000000}
+  - {end_time: 168000, start_size: 200000}
+  - {end_time: 141000, start_size: 36215.63}
+  - {end_time: 37500, start_size: 290000}
+  - {end_time: 0, start_size: 441007.7}

@@ -7,6 +7,10 @@ import pandas as pd
 root_dir = sys.argv[1]
 blocks = int(sys.argv[2])
 output_file = sys.argv[3]
+successful_list = sys.argv[4]
+with open(successful_list, 'r') as f:
+    successful_runs = f.read().splitlines()
+    successful_runs = [f'test{run}/' for run in successful_runs]
 
 combined_demes = []
 time_units = None
@@ -34,6 +38,9 @@ time_units = None
 for dirpath, dirnames, filenames in os.walk(root_dir):
     if f"{blocks}_epochs.yml" in filenames:
         file_path = os.path.join(dirpath, f"{blocks}_epochs.yml")
+        if not any(subdir in file_path for subdir in successful_runs):
+            print(f"Skipping unsuccessful run: {file_path}")
+            continue
         with open(file_path) as f:
             data = yaml.safe_load(f)
 
