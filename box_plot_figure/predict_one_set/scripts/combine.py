@@ -33,6 +33,21 @@ def ne_to_generations(data):
     data["demes"] = [deme]
     return data
 
+def adjust_for_ploidy(data):
+    assert len(data["demes"]) == 1, "Expected exactly one deme for Ne to generations conversion."
+
+    deme = data["demes"][0]
+    epochs = deme["epochs"]
+    
+    epochs = pd.DataFrame(epochs)
+    epochs = epochs.sort_values(by="end_time", ascending=False).reset_index(drop=True)
+    epochs["start_size"] = epochs["start_size"] / 2
+    
+    deme["epochs"] = epochs[["start_size", "end_time"]].to_dict(orient="records")
+
+    data["demes"] = [deme]
+    return data
+
 time_units = None
 # Walk through all subdirectories
 for dirpath, dirnames, filenames in os.walk(root_dir):
@@ -50,6 +65,7 @@ for dirpath, dirnames, filenames in os.walk(root_dir):
         if time_units == "Ne generations":
             data["time_units"] = "generations"
             data = ne_to_generations(data)
+        #data = adjust_for_ploidy(data)            
         if "demes" in data and len(data["demes"]) == 1:
             deme = data["demes"][0]
             

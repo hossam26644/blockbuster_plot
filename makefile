@@ -61,6 +61,9 @@ snakeclean:
 boxplot:
 	cd box_plot_figure && snakemake --cores 16 --directory .. --force --keep-incomplete  --rerun-incomplete
 
+boxunlock:
+	cd box_plot_figure && snakemake --cores 16 --directory .. --force --keep-incomplete  --rerun-incomplete --unlock
+
 boxplotclean:
 	rm -r .snakemake pipeline_y_output.txt box_plot_figure/snakemake box_plot_figure/.snakemake box_plot_figure/predict_one_set/snakemake box_plot_figure/predict_one_set/.snakemake box_plot_figure/combined_demes_*
 

@@ -1,6 +1,7 @@
-repeats: 4
+repeats: 10
 mutation_rate: 2.40463e-08
 recombination_rate: 2.40463e-08
 graph: "/home/hossam26644/Documents/blockbuster_plot/box_plot_figure/predict_one_set/demes/SP.yml"
 output_dir: "/home/hossam26644/Documents/blockbuster_plot/box_plot_figure/combined_demes_SP"
-seq_lengths: [2351371]
+seq_lengths: [10000, 100000, 1000000, 23513712]
+blockbuster_assist: False

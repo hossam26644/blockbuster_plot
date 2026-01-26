@@ -12,6 +12,7 @@ GRAPH=config["graph"]
 BRANCH_SFS = bool(strtobool(str(config["branch_sfs"])))
 BLOCKS = config.get("blocks", None)
 FIXED_TIMES = config.get("fixed_times", None)  # optional
+P_STRING_FLAG = bool(strtobool(str(config.get("blockbuster_assist", True))))
 
 if BRANCH_SFS:
     print("Using branch SFS")
@@ -40,16 +41,24 @@ else:
 Ne0 = epochs[-1].start_size
 theta0 = 4*Ne0*SCALE*config["sequence_length"]
 
+if P_STRING_FLAG:
 # Build -P string
-zeros = ",".join(["0"] * (n_epochs - 1))
-P_STRING = f'{theta0}'
-if n_epochs > 1:
-    P_STRING += f',{zeros}|{zeros}'
+    zeros = ",".join(["0"] * (n_epochs - 1))
+    P_STRING = f'-P \"{theta0}'
+    if n_epochs > 1:
+        P_STRING += f',{zeros}|{zeros}'
+    else:
+        P_STRING += '|'
+
+    P_STRING += '\"'
+
+
+    print("Using -P:", P_STRING)
 else:
-    P_STRING += '|'
+    P_STRING = ""
+    print("Not using -P string")
 
-print("Using -P:", P_STRING)
-
+    
 """BOXPLOTSTRT = epochs[1].start_time
 BOXPLOTEND = epochs[1].end_time"""
 
@@ -81,7 +90,7 @@ rule plot_sfs:
         fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
     shell:
         """
-        if bash /home/hossam26644/Documents/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2 -P "{P_STRING}"; then
+        if bash /home/hossam26644/Documents/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2 {P_STRING}; then
             echo "SUCCESS" > {output.status}
         else
             echo "FAILED" > {output.status}
