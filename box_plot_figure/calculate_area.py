@@ -418,17 +418,34 @@ class BoxPlotter:
         
         return sizes_per_seq  
 
-    def mse_distance_across_deme(self) -> Dict[str, List[float]]:
-        all_errors = {}
+    def rmse(self) -> Dict[str, List[float]]:
+        from scipy import interpolate
 
-        for end_time, start_time in zip(self.original.time_points[:-1], self.original.time_points[1:]):
-            mse_errors = self.mean_errors_between_time_points(start_time, end_time,
-                t_scale_start=self.min_time, t_scale_end=self.max_time)
-            for seq, errors in mse_errors.items():
-                if seq not in all_errors:
-                    all_errors[seq] = []
-                all_errors[seq].extend(errors)
-        return all_errors
+        original_breakpoints = self.original.deme_data[0].time_points
+        original_sizes = self.original.deme_data[0].sizes
+        rmses = {}
+        for seq, deme_per_seq in self.deme_per_seq.items():
+            for deme in deme_per_seq.deme_data:
+                deme_breakpoints = deme.time_points
+                deme_sizes = deme.sizes
+                breakpoints_min = max(min(original_breakpoints), min(deme_breakpoints))
+                breakpoints_max = min(max(original_breakpoints), max(deme_breakpoints))
+
+                if breakpoints_min ==0:
+                    breakpoints_min = 1
+                common_breakpoints = np.logspace(
+                    np.log10(breakpoints_min),
+                    np.log10(breakpoints_max-1),
+                    100)
+
+                orig_interp = interpolate.interp1d(original_breakpoints, original_sizes, kind='nearest')(common_breakpoints)
+                deme_interp = interpolate.interp1d(deme_breakpoints, deme_sizes, kind='nearest')(common_breakpoints)
+
+                rmse = np.sqrt(np.mean((orig_interp - deme_interp) ** 2))
+                if seq not in rmses:
+                    rmses[seq] = []
+                rmses[seq].append(rmse)
+        return rmses
 
     def draw_sizes_per_seq(self, start_time: float, end_time: float,
                             plot_file_name: str = "deme_boxplot_plot.png"):
@@ -504,6 +521,10 @@ class BoxPlotter:
             sizes_per_seq = self.error_mean_bootsrap()
             tittle = 'Fréchet Distance Between theoritical demography and the inferred Mean Demography \n Across 100 Replicates (100× Bootstrap).\nThe lower the better.'
             plot_file_name = plot_file_name.replace(".png", "_bootstrap.png")
+        elif method == "rmse":
+            sizes_per_seq = self.rmse()
+            tittle = 'Root Mean Square Error Between theoritical demography and Blockbuster\'s inferred demography \nfrom simulations (100 Replicates).\nThe lower the better.'
+            plot_file_name = plot_file_name.replace(".png", "_rmse.png")
 
         fig, ax = plt.subplots(figsize=(10, 6))
         keys = sorted(sizes_per_seq, key=lambda k: (int(k.split('_')[0]), k.split('_')[1]))
@@ -540,7 +561,7 @@ class BoxPlotter:
         ax.set_xlabel('Sequence', fontsize=12)
         #ax.set_ylabel('Population Size', fontsize=12)
         ax.set_title(tittle, fontsize=13, loc='left')
-        ax.set_yscale('log')
+        #ax.set_yscale('log')
         ax.grid(True, alpha=0.3)
 
         plt.tight_layout()
@@ -573,4 +594,5 @@ if __name__ == "__main__":
         boxplot.draw_sizes_per_seq(start_time=start_time, end_time=end_time, plot_file_name=args.o)
 
         boxplot.draw_error_boxplots(plot_file_name=args.o, method="frechet")
+        boxplot.draw_error_boxplots(plot_file_name=args.o, method="rmse")
         boxplot.draw_error_boxplots(plot_file_name=args.o, method="bootstrap")

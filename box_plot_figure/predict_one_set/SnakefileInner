@@ -41,18 +41,14 @@ else:
 Ne0 = epochs[-1].start_size
 theta0 = 4*Ne0*SCALE*config["sequence_length"]
 
-if P_STRING_FLAG:
-# Build -P string
+if P_STRING_FLAG: # Build -P string
     zeros = ",".join(["0"] * (n_epochs - 1))
     P_STRING = f'-P \"{theta0}'
     if n_epochs > 1:
         P_STRING += f',{zeros}|{zeros}'
     else:
         P_STRING += '|'
-
     P_STRING += '\"'
-
-
     print("Using -P:", P_STRING)
 else:
     P_STRING = ""
@@ -90,7 +86,7 @@ rule plot_sfs:
         fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
     shell:
         """
-        if bash /home/hossam26644/Documents/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2 {P_STRING}; then
+        if bash /home/hossam26644/Documents/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2 -e {BLOCKS} {P_STRING}; then
             echo "SUCCESS" > {output.status}
         else
             echo "FAILED" > {output.status}

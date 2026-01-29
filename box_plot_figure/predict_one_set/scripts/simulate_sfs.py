@@ -27,7 +27,7 @@ ts = msprime.sim_ancestry(
 )
 if not branch_sfs:
     print("Adding mutations to tree sequence")
-    ts = msprime.sim_mutations(ts, rate=mutation_rate, random_seed=seed)
+    ts = msprime.sim_mutations(ts, rate=mutation_rate, random_seed=seed, discrete_genome=False)
 
 mode = "branch" if branch_sfs else "site"
 # Get SFS
