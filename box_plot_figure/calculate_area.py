@@ -418,12 +418,14 @@ class BoxPlotter:
         
         return sizes_per_seq  
 
-    def rmse(self) -> Dict[str, List[float]]:
+    def nrmse(self) -> Dict[str, List[float]]:
         from scipy import interpolate
 
         original_breakpoints = self.original.deme_data[0].time_points
         original_sizes = self.original.deme_data[0].sizes
-        rmses = {}
+        normalization_factor = np.max(original_sizes) - np.min(original_sizes)
+
+        nrmses = {}
         for seq, deme_per_seq in self.deme_per_seq.items():
             for deme in deme_per_seq.deme_data:
                 deme_breakpoints = deme.time_points
@@ -442,10 +444,36 @@ class BoxPlotter:
                 deme_interp = interpolate.interp1d(deme_breakpoints, deme_sizes, kind='nearest')(common_breakpoints)
 
                 rmse = np.sqrt(np.mean((orig_interp - deme_interp) ** 2))
-                if seq not in rmses:
-                    rmses[seq] = []
-                rmses[seq].append(rmse)
-        return rmses
+                nrmse = rmse / normalization_factor if normalization_factor != 0 else 0
+
+                if seq not in nrmses:
+                    nrmses[seq] = []
+                nrmses[seq].append(nrmse)
+        return nrmses
+
+    @staticmethod
+    def format_si(value):
+        value = float(value)
+        prefixes = {
+            -12: "p",
+            -9:  "n",
+            -6:  "µ",
+            -3:  "m",
+            0:  "",
+            3:  "k",
+            6:  "M",
+            9:  "G",
+            12:  "T",
+        }
+
+        if value == 0:
+            return "0"
+
+        import math
+        exp = int(math.floor(math.log10(abs(value)) / 3) * 3)
+        exp = max(min(exp, 12), -12)
+        expressed_value = f"{value / 10**exp:.1f}".replace('.0', '')
+        return f"{expressed_value}{prefixes[exp]}"
 
     def draw_sizes_per_seq(self, start_time: float, end_time: float,
                             plot_file_name: str = "deme_boxplot_plot.png"):
@@ -521,9 +549,9 @@ class BoxPlotter:
             sizes_per_seq = self.error_mean_bootsrap()
             tittle = 'Fréchet Distance Between theoritical demography and the inferred Mean Demography \n Across 100 Replicates (100× Bootstrap).\nThe lower the better.'
             plot_file_name = plot_file_name.replace(".png", "_bootstrap.png")
-        elif method == "rmse":
-            sizes_per_seq = self.rmse()
-            tittle = 'Root Mean Square Error Between theoritical demography and Blockbuster\'s inferred demography \nfrom simulations (100 Replicates).\nThe lower the better.'
+        elif method == "nrmse":
+            sizes_per_seq = self.nrmse()
+            tittle = 'Normalised Root Mean Square Error'
             plot_file_name = plot_file_name.replace(".png", "_rmse.png")
 
         fig, ax = plt.subplots(figsize=(10, 6))
@@ -535,7 +563,9 @@ class BoxPlotter:
         ticks = []
         for k in keys:
             i = int(k.split('_')[0])
-            ticks.append(f"{i}\n{k.split('_')[1]}")
+            #ticks.append(f"{i}\n{k.split('_')[1]}")
+            ticks.append(f"{self.format_si(i)}b")
+            
             if prev_i is not None and i != prev_i:
                 x += 0.5          # bigger gap between different ints
             data.append(sizes_per_seq[k])
@@ -555,12 +585,15 @@ class BoxPlotter:
 
         ax.set_xticks(pos)
         ax.set_xticklabels(ticks)
+        ax.tick_params(labelsize=16)
+
+
         handles = [Patch(facecolor=colors[s], label=s) for s in sorted(colors)]
         #ax.legend(handles=handles)
 
-        ax.set_xlabel('Sequence', fontsize=12)
+        #ax.set_xlabel('Sequence', fontsize=12)
         #ax.set_ylabel('Population Size', fontsize=12)
-        ax.set_title(tittle, fontsize=13, loc='left')
+        ax.set_title(tittle, fontsize=18, loc='left')
         #ax.set_yscale('log')
         ax.grid(True, alpha=0.3)
 
@@ -594,5 +627,5 @@ if __name__ == "__main__":
         boxplot.draw_sizes_per_seq(start_time=start_time, end_time=end_time, plot_file_name=args.o)
 
         boxplot.draw_error_boxplots(plot_file_name=args.o, method="frechet")
-        boxplot.draw_error_boxplots(plot_file_name=args.o, method="rmse")
-        boxplot.draw_error_boxplots(plot_file_name=args.o, method="bootstrap")
+        boxplot.draw_error_boxplots(plot_file_name=args.o, method="nrmse")
+        #boxplot.draw_error_boxplots(plot_file_name=args.o, method="bootstrap")

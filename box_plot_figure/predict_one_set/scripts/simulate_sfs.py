@@ -17,9 +17,9 @@ demography = msprime.Demography.from_demes(graph)
 
 # Simulate tree sequence
 ts = msprime.sim_ancestry(
-    20,
+    10,
     random_seed=seed,
-    ploidy=1,
+    ploidy=2,
     sequence_length=sequence_length,
     recombination_rate=recombination_rate,
     demography=demography,
