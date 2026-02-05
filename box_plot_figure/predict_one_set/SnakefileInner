@@ -14,11 +14,12 @@ BLOCKS = config.get("blocks", None)
 FIXED_TIMES = config.get("fixed_times", None)  # optional
 P_STRING_FLAG = bool(strtobool(str(config.get("blockbuster_assist", True))))
 
+print(config["sequence_length"])
 if BRANCH_SFS:
     print("Using branch SFS")
-    SCALE= 1 / (2*config["sequence_length"])  # scaling factor for mutation rate
+    SCALE= 1 / (config["sequence_length"])  # scaling factor for mutation rate
 else: 
-    SCALE= 0.5*config["mutation_rate"] # scaling factor for mutation rate
+    SCALE= config["mutation_rate"] # scaling factor for mutation rate
     #SCALE=  1 / (2*config["sequence_length"]) 
     print("Using site SFS (mutations)")
 
@@ -86,7 +87,7 @@ rule plot_sfs:
         fixed_times=(f"-T {FIXED_TIMES}" if FIXED_TIMES is not None else "")
     shell:
         """
-        if bash /home/hossam26644/Documents/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2 -e {BLOCKS} {P_STRING}; then
+        if bash /home/hossam26644/Documents/playground/blockbuster_plot/blockbuster.sh --sfs {input.sfs_file} -p {output.result_dir} -L {params.seq_len} -m {SCALE} {params.fixed_times} -l 1e-2 -e {BLOCKS} {P_STRING}; then
             echo "SUCCESS" > {output.status}
         else
             echo "FAILED" > {output.status}

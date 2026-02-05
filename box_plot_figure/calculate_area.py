@@ -6,6 +6,31 @@ import argparse
 import os 
 from matplotlib.patches import Patch
 import similaritymeasures # pip install similaritymeasures
+import pandas as pd
+from matplotlib import colormaps as mcm
+
+def format_si(value):
+    value = float(value)
+    prefixes = {
+        -12: "p",
+        -9:  "n",
+        -6:  "µ",
+        -3:  "m",
+        0:  "",
+        3:  "k",
+        6:  "M",
+        9:  "G",
+        12:  "T",
+    }
+
+    if value == 0:
+        return "0"
+
+    import math
+    exp = int(math.floor(math.log10(abs(value)) / 3) * 3)
+    exp = max(min(exp, 12), -12)
+    expressed_value = f"{value / 10**exp:.1f}".replace('.0', '')
+    return f"{expressed_value}{prefixes[exp]}"
 
 class SingleDeme:
     def __init__(self, deme_dict: Dict):
@@ -194,7 +219,6 @@ class DemesAnalyzer:
         return (np.array(times), np.array(means), 
                 np.array(lower_bounds), np.array(upper_bounds))
 
-
 class EnvelopePlotter:
     """Analyze and visualize population size envelopes from demes YAML files."""
     
@@ -254,11 +278,17 @@ class BoxPlotter:
         self.original = DemesAnalyzer(original_deme_file)
         self.min_time = min(self.original.time_points)
         self.max_time = max(self.original.time_points)
-
+        self.prefix = prefix
         #dir_path = os.path.dirname(os.path.realpath(__file__))
-        self.deme_per_seq = {s: DemesAnalyzer(f"{prefix}_seq_{s}/results.yml", min_time=self.min_time, max_time=self.max_time) for s in successful_runs}        
+        self.deme_per_seq = {s: DemesAnalyzer(f"{self.get_directory(s)}/results.yml", min_time=self.min_time, max_time=self.max_time) for s in successful_runs}        
+   
+    def get_directory(self, run: str) -> str:
+        """
+        gets the working directory of a run
+        """
+        return f"{self.prefix}_seq_{run}"
 
-    def mean_errors_between_time_points(self,  start_time: float, end_time: float,
+    def mean_errors_between_time_points_legacy(self,  start_time: float, end_time: float,
         t_scale_start:float = None, t_scale_end:float = None) -> Dict[str, List[float]]:
         """
         Calculate MSE errors between the demes of this demes analyzer and the original deme,
@@ -369,7 +399,57 @@ class BoxPlotter:
                 errors_per_seq[seq].append(np.mean(area_diff))
         return errors_per_seq
 
-    def sizes_in_a_time_window(self,  start_time: float, end_time: float) -> Dict[str, List[float]]:
+    def normalised_mean_errors_between_time_points(self,  start_time: float, end_time: float) -> Dict[str, List[float]]:
+        """
+        Calculate MSE errors between the demes of this demes analyzer and the original deme,
+        between specified time points.
+        Args:
+            start_time: Start time for MSE calculation
+            end_time: End time for MSE calculation
+        Returns:
+            List of MSE errors for each deme
+        
+        """
+        errors_per_seq = {}
+
+        for seq, deme_per_seq in self.deme_per_seq.items():
+            errors_per_seq[seq] = []
+            for deme in deme_per_seq.deme_data:
+                sizes_per_epoch = []
+                scales = []
+                for epoch in deme.epochs:
+                    e_start = epoch['start_time']
+                    e_end = epoch['end_time']
+
+                    if not max(e_end, end_time) <= min(e_start, start_time):
+                        s=1
+                        continue
+                    
+                    e_start = min(e_start, start_time) #TODO add this to envelope
+                    e_end = max(e_end, end_time) #since we go backwards in time
+
+                    sizes = deme_per_seq._get_sizes_at_interval(e_start, e_end, deme_data=[deme])
+                    assert len(sizes) == 1, "Expected exactly one size for the deme in the interval."
+                    size = sizes[0]
+
+                    orig_sizes = self.original._get_sizes_at_interval(e_start, e_end)
+                    assert len(orig_sizes) == 1, "Expected exactly one size for the original deme in the interval."
+                    orig_size = orig_sizes[0]
+                    
+                    sizes_per_epoch.append(size)
+                    scales.append((e_start - e_end) / (start_time - end_time))
+                    #scales.append(1)
+                
+                
+                if len(scales) >1:
+                    s=1
+                scaled_size = sum([(s * scale)/np.sum(scales) for s, scale in zip(sizes_per_epoch, scales)])
+                error = np.sqrt(np.mean((scaled_size - orig_size) ** 2))/orig_size
+                errors_per_seq[seq].append(error)
+        
+        return errors_per_seq  
+
+    def sizes_in_a_time_window(self,  start_time: float, end_time: float, normalise=False) -> Dict[str, List[float]]:
         """
         Calculate MSE errors between the demes of this demes analyzer and the original deme,
         between specified time points.
@@ -414,6 +494,8 @@ class BoxPlotter:
                 if len(scales) >1:
                     s=1
                 scaled_size = sum([(s * scale)/np.sum(scales) for s, scale in zip(sizes_per_epoch, scales)])
+                if normalise:
+                    scaled_size = scaled_size / orig_size
                 sizes_per_seq[seq].append(scaled_size)
         
         return sizes_per_seq  
@@ -451,30 +533,6 @@ class BoxPlotter:
                 nrmses[seq].append(nrmse)
         return nrmses
 
-    @staticmethod
-    def format_si(value):
-        value = float(value)
-        prefixes = {
-            -12: "p",
-            -9:  "n",
-            -6:  "µ",
-            -3:  "m",
-            0:  "",
-            3:  "k",
-            6:  "M",
-            9:  "G",
-            12:  "T",
-        }
-
-        if value == 0:
-            return "0"
-
-        import math
-        exp = int(math.floor(math.log10(abs(value)) / 3) * 3)
-        exp = max(min(exp, 12), -12)
-        expressed_value = f"{value / 10**exp:.1f}".replace('.0', '')
-        return f"{expressed_value}{prefixes[exp]}"
-
     def draw_sizes_per_seq(self, start_time: float, end_time: float,
                             plot_file_name: str = "deme_boxplot_plot.png"):
         """
@@ -501,8 +559,8 @@ class BoxPlotter:
             data.append(sizes_per_seq[k])
             pos.append(x)
             x += 0.3            # very small gap within same int
-            prev_i = i
-            
+            prev_i = i 
+
         bp = ax.boxplot(data, positions=pos, widths=0.15,
                         showfliers=False, patch_artist=True)
 
@@ -564,7 +622,7 @@ class BoxPlotter:
         for k in keys:
             i = int(k.split('_')[0])
             #ticks.append(f"{i}\n{k.split('_')[1]}")
-            ticks.append(f"{self.format_si(i)}b")
+            ticks.append(f"{format_si(i)}b")
             
             if prev_i is not None and i != prev_i:
                 x += 0.5          # bigger gap between different ints
@@ -600,11 +658,94 @@ class BoxPlotter:
         plt.tight_layout()
         plt.savefig(plot_file_name)
 
+def plot_boxes(epochs: List[pd.DataFrame]):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    colors = mcm["Pastel1"].colors
+    
+    # Get all runs (assuming all epochs have the same runs)
+    runs = sorted(epochs[0].columns, key=lambda k: (int(k.split('_')[0]), k.split('_')[1]))
+    
+    num_epochs = len(epochs)
+    num_runs = len(runs)
+    
+    # Prepare data for box plots
+    positions = []
+    data_to_plot = []
+    box_colors = []
+    
+    group_width = num_epochs  # Number of boxes per group
+    gap = 1.5  # Gap between groups
+    
+    for run_idx, run in enumerate(runs):
+        for epoch_idx, epoch in enumerate(epochs):
+            # Calculate position: group_idx * (group_width + gap) + position within group
+            pos = run_idx * (group_width + gap) + epoch_idx
+            positions.append(pos)
+            data_to_plot.append(epoch[run].dropna())
+            box_colors.append(colors[epoch_idx % len(colors)])
+    
+    # Create box plots
+    bp = ax.boxplot(data_to_plot, positions=positions, widths=0.6, patch_artist=True, showfliers=False)
+    
+    # Color the boxes
+    for patch, color in zip(bp['boxes'], box_colors):
+        patch.set_facecolor(color)
+    
+    # Set x-axis ticks at the middle of each group
+    tick_positions = [run_idx * (group_width + gap) + (num_epochs - 1) / 2 for run_idx in range(num_runs)]
+    ax.set_xticks(tick_positions)
+    runs = [format_si(r.split('_')[0])+"bp" for r in runs]
+    ax.set_xticklabels(runs)
+    
+    # Create legend
+    legend_elements = [plt.Rectangle((0, 0), 1, 1, facecolor=colors[i % len(colors)], 
+                                     label=f'Epoch {i+1}') 
+                       for i in range(num_epochs)]
+    ax.legend(handles=legend_elements, loc='best')
+    
+    ax.set_title('Normalised Mean Squared Error', loc='left')
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig("boxplot_comparison.png")
+
+def plot_sleeve(hdf5file: str, plot_file_name: str = "sleeve_plot.png"):
+    colors = mcm["Pastel1"].colors
+
+    df_processed = pd.read_hdf(hdf5file, key="processed")
+    df_original = pd.read_hdf(hdf5file, key="original")
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    orig_times, orig_means = df_original["time"], df_original["mean"]
+
+    sorted_times = sorted(orig_times)
+    i = 0
+    while i < len(orig_times)-1:
+        color = colors[i//2 % len(colors)]
+        t_start = sorted_times[i]
+        t_end = sorted_times[i+1]
+        inner_df = df_processed[(df_processed["time"] >= t_start) & (df_processed["time"] <= t_end)]
+        times, means, lower, upper = inner_df["time"], inner_df["mean"], inner_df["lower"], inner_df["upper"]
+        ax.fill_between(times, lower, upper, alpha=0.85, color=color)
+        ax.plot(times, means, linestyle="--", color="grey", linewidth=2)
+        i += 2
+    ax.plot(orig_times, orig_means, color='blue', linewidth=2, label='Original deme')
+    ax.set_xlabel('Time (generations)', fontsize=12)
+    ax.set_ylabel('Population Size', fontsize=12)
+    ax.set_xscale('log')
+    ax.set_title('Population Size Envelope Across Demes', fontsize=14, fontweight='bold')
+    ax.legend(loc='best')
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(plot_file_name)
+
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Analyze and plot population size envelopes from demes YAML files.")
     parser.add_argument("function", type=str, nargs='?', default="envelope", 
-                        choices=["envelope", "boxplot"],
+                        choices=["envelope", "boxplot", "exportdata", "draw"],
                         help="Function to run: 'envelope' or 'boxplot' (default: envelope)")
     parser.add_argument("-d", type=str, help="Path to the combined demes YAML file.")
     parser.add_argument("-r", type=str, help="Path to the original deme YAML file for comparison.")
@@ -629,3 +770,47 @@ if __name__ == "__main__":
         boxplot.draw_error_boxplots(plot_file_name=args.o, method="frechet")
         boxplot.draw_error_boxplots(plot_file_name=args.o, method="nrmse")
         #boxplot.draw_error_boxplots(plot_file_name=args.o, method="bootstrap")
+
+    elif args.function == "exportdata":
+
+        boxplot = BoxPlotter(args.s, args.r, prefix=args.p)
+        for i, epoch in enumerate(reversed(boxplot.original.deme_data[0].epochs)):
+            
+            start_time = float(epoch["start_time"])
+            end_time = int(float(epoch["end_time"]))
+            if start_time == float('inf'):
+                start_time = boxplot.original.time_points[0]*1.5          
+            sizes_per_seq = pd.DataFrame(boxplot.normalised_mean_errors_between_time_points(start_time*0.8, end_time*1.2))
+            sizes_per_seq.to_csv(args.o.replace(".png", f"_epoch{i}.csv"), index=False)
+
+        largest = max(args.s, key=lambda s: int(s.split('_')[-2]))
+        combined_demes_file = f"{args.p}_seq_{largest}/results.yml"
+        
+        original = DemesAnalyzer(args.r)
+        min_time = min(original.time_points)
+        max_time = max(original.time_points)
+        combined_simulations = DemesAnalyzer(combined_demes_file,
+            min_time=min_time, max_time=max_time)   
+
+        times, means, lower, upper = combined_simulations.get_envelope_data(2.5, 97.5)
+        orig_times, orig_means, _, _ = original.get_envelope_data(0, 100)
+
+        df = pd.DataFrame({
+            "time": times,
+            "mean": means,
+            "lower": lower,
+            "upper": upper
+        })
+        
+        df.to_hdf("data.h5", key="processed", mode="w")
+        pd.DataFrame({
+            "time": orig_times,
+            "mean": orig_means
+        }).to_hdf("data.h5", key="original")
+
+
+
+    elif args.function == "draw":
+        plot_sleeve("data.h5", plot_file_name=args.o)
+        dfs = [pd.read_csv(args.o.replace(".png", f"_epoch{i}.csv")) for i in range(3)]
+        plot_boxes(dfs)
