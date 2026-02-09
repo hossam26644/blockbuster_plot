@@ -19,7 +19,7 @@ else:
 with open("box_plot_figure/config.yml", 'r') as f:
     base_inner_config = yaml.safe_load(f)
 
-threads_per_seq = max(4, int(16/len(SEQ_LENGTHS)))
+threads_per_seq = min(4, int(16/len(SEQ_LENGTHS)))
 print(f"Allocating {threads_per_seq} threads per sequence length")
 
 
@@ -94,7 +94,9 @@ rule create_boxplot:
                          seq_length=SEQ_LENGTHS,
                          suffix=[suffix for _, suffix in BRANCH_SFS_OPTIONS])
     output:
-        boxplot = "{output}_boxplot.png"
+        boxplot = "{output}_boxplot.png",
+        decay = "{output}_decay.png",
+        sleeve = "{output}_sleeve.png"
     params:
         workdir = OUT_DIR
     run:
@@ -109,7 +111,10 @@ rule create_boxplot:
         # Call boxplot.py with successful lengths
         import subprocess
         if successful_lengths:
-            cmd = ["python", "box_plot_figure/calculate_area.py", "boxplot", "-s"] + successful_lengths + ["-o", output.boxplot, "-r", config["graph"], "-p", params.workdir]
+            cmd = ["python", "box_plot_figure/calculate_area.py", "exportdata", "-s"] + successful_lengths + ["-o", wildcards.output, "-r", config["graph"], "-p", params.workdir]
+            print(" ".join(cmd))
+            subprocess.run(cmd, check=True)
+            cmd = ["python", "box_plot_figure/calculate_area.py", "draw", "-s"] + successful_lengths + ["-o", wildcards.output, "-r", config["graph"], "-p", params.workdir]
             print(" ".join(cmd))
             subprocess.run(cmd, check=True)
         else:

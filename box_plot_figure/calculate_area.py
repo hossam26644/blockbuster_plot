@@ -8,6 +8,87 @@ from matplotlib.patches import Patch
 import similaritymeasures # pip install similaritymeasures
 import pandas as pd
 from matplotlib import colormaps as mcm
+from scipy.optimize import curve_fit
+from scipy.stats import linregress
+    
+    
+COLORS = mcm["Pastel1"].colors
+
+def exponential_decay(x, a, b, c):
+    """Exponential decay: y = a * exp(-b * x) + c"""
+    return a * np.exp(-b * x) + c
+
+def power_law(x, a, b, c):
+    """Power law: y = a * x^(-b) + c"""
+    return a * np.power(x, -b) + c
+
+def logarithmic(x, a, b):
+    """Logarithmic: y = a * log(x) + b"""
+    return a * np.log(x) + b
+
+def linear(x, a, b):
+    """Linear: y = a * x + b"""
+    return a * x + b
+
+def sqrt(x, a, b):
+    """Square root: y = a * x^(1/2) + b"""
+    return a * np.sqrt(x) + b
+
+def fit_models(x_data, y_data):
+    """Fit different models and return the best one based on R²"""
+    models = {}
+    
+    # Exponential decay
+    try:
+        popt, _ = curve_fit(exponential_decay, x_data, y_data, maxfev=10000)
+        y_pred = exponential_decay(x_data, *popt)
+        r2 = 1 - np.sum((y_data - y_pred)**2) / np.sum((y_data - np.mean(y_data))**2)
+        models['exponential'] = {'params': popt, 'r2': r2, 'func': exponential_decay, 'name': 'Exponential'}
+    except:
+        pass
+    
+    # Power law
+    try:
+        popt, _ = curve_fit(power_law, x_data, y_data, maxfev=10000)
+        y_pred = power_law(x_data, *popt)
+        r2 = 1 - np.sum((y_data - y_pred)**2) / np.sum((y_data - np.mean(y_data))**2)
+        models['power'] = {'params': popt, 'r2': r2, 'func': power_law, 'name': 'Power Law'}
+    except:
+        pass
+    
+    # Logarithmic
+    try:
+        popt, _ = curve_fit(logarithmic, x_data, y_data, maxfev=10000)
+        y_pred = logarithmic(x_data, *popt)
+        r2 = 1 - np.sum((y_data - y_pred)**2) / np.sum((y_data - np.mean(y_data))**2)
+        models['logarithmic'] = {'params': popt, 'r2': r2, 'func': logarithmic, 'name': 'Logarithmic'}
+    except:
+        pass
+    
+    # Linear
+    try:
+        slope, intercept, r_value, _, _ = linregress(x_data, y_data)
+        r2 = r_value**2
+        models['linear'] = {'params': [slope, intercept], 'r2': r2, 'func': linear, 'name': 'Linear'}
+    except:
+        pass
+
+    # Square root
+    try:
+        popt, _ = curve_fit(sqrt, x_data, y_data, maxfev=10000)
+        y_pred = sqrt(x_data, *popt)
+        r2 = 1 - np.sum((y_data - y_pred)**2) / np.sum((y_data - np.mean(y_data))**2)
+        models['sqrt'] = {'params': popt, 'r2': r2, 'func': sqrt, 'name': 'Square Root'}
+    except:
+        print("Square root fit failed, likely due to negative or zero x values.")   
+        pass
+
+    
+    # Find best model
+    if models:
+        best_model_name = max(models, key=lambda k: models[k]['r2'])
+        return models, best_model_name
+    return None, None
 
 def format_si(value):
     value = float(value)
@@ -279,7 +360,6 @@ class BoxPlotter:
         self.min_time = min(self.original.time_points)
         self.max_time = max(self.original.time_points)
         self.prefix = prefix
-        #dir_path = os.path.dirname(os.path.realpath(__file__))
         self.deme_per_seq = {s: DemesAnalyzer(f"{self.get_directory(s)}/results.yml", min_time=self.min_time, max_time=self.max_time) for s in successful_runs}        
    
     def get_directory(self, run: str) -> str:
@@ -658,11 +738,47 @@ class BoxPlotter:
         plt.tight_layout()
         plt.savefig(plot_file_name)
 
-def plot_boxes(epochs: List[pd.DataFrame]):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    colors = mcm["Pastel1"].colors
+    def export_data(self, output_file: str = "boxplot_data"):
+        #Data for box plot
+        for i, epoch in enumerate(reversed(self.original.deme_data[0].epochs)):
+            
+            start_time = float(epoch["start_time"])
+            end_time = int(float(epoch["end_time"]))
+            if start_time == float('inf'):
+                start_time = self.original.time_points[0]*1.5          
+            sizes_per_seq = pd.DataFrame(self.normalised_mean_errors_between_time_points(start_time, end_time))
+            sizes_per_seq.to_csv(f"{output_file}_nme_epoch{i}.csv", index=False)      
+
+        #Data for sleeve
+        largest = max(self.successful_runs, key=lambda s: int(s.split('_')[-2]))
+        
+        combined_simulations = self.deme_per_seq[largest]
+
+        times, means, lower, upper = combined_simulations.get_envelope_data(2.5, 97.5)
+        orig_times, orig_means, _, _ =self.original.get_envelope_data(0, 100)
+
+        df = pd.DataFrame({
+            "time": times,
+            "mean": means,
+            "lower": lower,
+            "upper": upper
+        })
+        
+        df.to_hdf(f"{output_file}_sleeve.h5", key="processed", mode="w")
+        pd.DataFrame({
+            "time": orig_times,
+            "mean": orig_means
+        }).to_hdf(f"{output_file}_sleeve.h5", key="original")      
+
+
+def plot_boxes(epochs: List[pd.DataFrame], plot_file_name: str = "boxplot_plot.png"):
+    fig = plt.figure(figsize=(12, 7))
     
-    # Get all runs (assuming all epochs have the same runs)
+    # Create main axis for boxplots
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    
+    # Get all runs
     runs = sorted(epochs[0].columns, key=lambda k: (int(k.split('_')[0]), k.split('_')[1]))
     
     num_epochs = len(epochs)
@@ -673,16 +789,15 @@ def plot_boxes(epochs: List[pd.DataFrame]):
     data_to_plot = []
     box_colors = []
     
-    group_width = num_epochs  # Number of boxes per group
-    gap = 1.5  # Gap between groups
+    group_width = num_epochs
+    gap = 1.5
     
     for run_idx, run in enumerate(runs):
         for epoch_idx, epoch in enumerate(epochs):
-            # Calculate position: group_idx * (group_width + gap) + position within group
             pos = run_idx * (group_width + gap) + epoch_idx
             positions.append(pos)
             data_to_plot.append(epoch[run].dropna())
-            box_colors.append(colors[epoch_idx % len(colors)])
+            box_colors.append(COLORS[epoch_idx % len(COLORS)])
     
     # Create box plots
     bp = ax.boxplot(data_to_plot, positions=positions, widths=0.6, patch_artist=True, showfliers=False)
@@ -691,14 +806,14 @@ def plot_boxes(epochs: List[pd.DataFrame]):
     for patch, color in zip(bp['boxes'], box_colors):
         patch.set_facecolor(color)
     
-    # Set x-axis ticks at the middle of each group
+    # Set x-axis ticks
     tick_positions = [run_idx * (group_width + gap) + (num_epochs - 1) / 2 for run_idx in range(num_runs)]
     ax.set_xticks(tick_positions)
-    runs = [format_si(r.split('_')[0])+"bp" for r in runs]
-    ax.set_xticklabels(runs)
+    runs_formatted = [format_si(r.split('_')[0])+"bp" for r in runs]
+    ax.set_xticklabels(runs_formatted)
     
     # Create legend
-    legend_elements = [plt.Rectangle((0, 0), 1, 1, facecolor=colors[i % len(colors)], 
+    legend_elements = [plt.Rectangle((0, 0), 1, 1, facecolor=COLORS[i % len(COLORS)], 
                                      label=f'Epoch {i+1}') 
                        for i in range(num_epochs)]
     ax.legend(handles=legend_elements, loc='best')
@@ -707,10 +822,9 @@ def plot_boxes(epochs: List[pd.DataFrame]):
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig("boxplot_comparison.png")
+    plt.savefig(plot_file_name, dpi=300, bbox_inches='tight')
 
 def plot_sleeve(hdf5file: str, plot_file_name: str = "sleeve_plot.png"):
-    colors = mcm["Pastel1"].colors
 
     df_processed = pd.read_hdf(hdf5file, key="processed")
     df_original = pd.read_hdf(hdf5file, key="original")
@@ -721,7 +835,7 @@ def plot_sleeve(hdf5file: str, plot_file_name: str = "sleeve_plot.png"):
     sorted_times = sorted(orig_times)
     i = 0
     while i < len(orig_times)-1:
-        color = colors[i//2 % len(colors)]
+        color = COLORS[i//2 % len(COLORS)]
         t_start = sorted_times[i]
         t_end = sorted_times[i+1]
         inner_df = df_processed[(df_processed["time"] >= t_start) & (df_processed["time"] <= t_end)]
@@ -739,6 +853,69 @@ def plot_sleeve(hdf5file: str, plot_file_name: str = "sleeve_plot.png"):
     plt.tight_layout()
     plt.savefig(plot_file_name)
 
+def plot_error_decay_analysis(epochs: List[pd.DataFrame], plot_file_name: str = "decay_analysis.png"):
+        
+    runs = sorted(epochs[0].columns, key=lambda k: (int(k.split('_')[0]), k.split('_')[1]))
+    
+    num_epochs = len(epochs)
+    num_runs = len(runs)
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    middle_epoch_idx = 1# num_epochs // 2
+    middle_epoch = epochs[middle_epoch_idx]
+    
+    run_sizes = [int(r.split('_')[0]) for r in runs]
+    
+    # Prepare data for inset boxplot
+    inset_data = []
+    inset_positions = []
+    median_values = []
+    
+    for run_idx, run in enumerate(runs):
+        inset_data.append(middle_epoch[run].dropna())
+        inset_positions.append(run_sizes[run_idx])
+        median_values.append(middle_epoch[run].median())
+    
+    # Create boxplots in inset with same color as middle epoch
+    middle_epoch_color = COLORS[middle_epoch_idx % len(COLORS)]
+    bp_inset = ax.boxplot(inset_data, positions=inset_positions, widths=run_sizes[0]*0.35, 
+                                  patch_artist=True, showfliers=False)
+    
+    # Color the inset boxes with the same color as middle epoch
+    for patch in bp_inset['boxes']:
+        patch.set_facecolor(middle_epoch_color)
+    
+    # Fit models on median values
+    x_data = np.array(run_sizes)
+    y_data = np.array(median_values)
+    
+    models, best_model_name = fit_models(x_data, y_data)
+    
+    # Plot fitted curve
+    x_smooth = np.linspace(x_data.min(), x_data.max(), 200)
+    
+    if models and best_model_name:
+        best_model = models[best_model_name]
+        y_fit = best_model['func'](x_smooth, *best_model['params'])
+        ax.plot(x_smooth, y_fit, 'r-', linewidth=2, 
+                     label=f"{best_model['name']} (R²={best_model['r2']:.4f})", zorder=2)
+        
+        # Print all model results
+        print(f"\n=== Model Fitting Results for Epoch {middle_epoch_idx + 1} ===")
+        for model_name, model_info in sorted(models.items(), key=lambda x: x[1]['r2'], reverse=True):
+            print(f"{model_info['name']}: R² = {model_info['r2']:.6f}")
+        print(f"Best model: {best_model['name']}")
+    
+    ax.set_xlabel('Run Size (bp)')
+    ax.set_ylabel('RMSE')
+    ax.set_title(f'Epoch {middle_epoch_idx + 1} - Decay Analysis', loc='left', fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=8)
+    ax.set_xticks(run_sizes, [format_si(s)+"bp" for s in run_sizes])
+
+    plt.tight_layout()
+    plt.savefig(plot_file_name, dpi=300, bbox_inches='tight')
 
 
 if __name__ == "__main__":
@@ -749,68 +926,20 @@ if __name__ == "__main__":
                         help="Function to run: 'envelope' or 'boxplot' (default: envelope)")
     parser.add_argument("-d", type=str, help="Path to the combined demes YAML file.")
     parser.add_argument("-r", type=str, help="Path to the original deme YAML file for comparison.")
-    parser.add_argument("-o", type=str, default="deme_envelope_plot.png", help="Output plot file name.")
+    parser.add_argument("-o", type=str, default="output", help="Output plot file name.")
     parser.add_argument("-s", nargs='+', type=str, default=None, help="list of successful runs")
     parser.add_argument("-p", type=str, default="", help="prefix of the file names")
     
     args = parser.parse_args()
-    
-    if args.function == "envelope":
-        envelope = EnvelopePlotter(args.d, args.r)
-        envelope.plot_envelope(plot_file_name=args.o)
-    
-    elif args.function == "boxplot":
-        boxplot = BoxPlotter(args.s, args.r, prefix=args.p)
-        #boxplot.draw_sizes_per_seq(start_time=675000, end_time=80000, plot_file_name=args.o)
-        middle_epoch = boxplot.original.deme_data[0].epochs[1]
-        start_time = int(float(middle_epoch["start_time"]*0.8))
-        end_time = int(float(middle_epoch["end_time"]*1.2))
-        boxplot.draw_sizes_per_seq(start_time=start_time, end_time=end_time, plot_file_name=args.o)
 
-        boxplot.draw_error_boxplots(plot_file_name=args.o, method="frechet")
-        boxplot.draw_error_boxplots(plot_file_name=args.o, method="nrmse")
-        #boxplot.draw_error_boxplots(plot_file_name=args.o, method="bootstrap")
-
-    elif args.function == "exportdata":
+    if args.function == "exportdata":
 
         boxplot = BoxPlotter(args.s, args.r, prefix=args.p)
-        for i, epoch in enumerate(reversed(boxplot.original.deme_data[0].epochs)):
-            
-            start_time = float(epoch["start_time"])
-            end_time = int(float(epoch["end_time"]))
-            if start_time == float('inf'):
-                start_time = boxplot.original.time_points[0]*1.5          
-            sizes_per_seq = pd.DataFrame(boxplot.normalised_mean_errors_between_time_points(start_time*0.8, end_time*1.2))
-            sizes_per_seq.to_csv(args.o.replace(".png", f"_epoch{i}.csv"), index=False)
-
-        largest = max(args.s, key=lambda s: int(s.split('_')[-2]))
-        combined_demes_file = f"{args.p}_seq_{largest}/results.yml"
-        
-        original = DemesAnalyzer(args.r)
-        min_time = min(original.time_points)
-        max_time = max(original.time_points)
-        combined_simulations = DemesAnalyzer(combined_demes_file,
-            min_time=min_time, max_time=max_time)   
-
-        times, means, lower, upper = combined_simulations.get_envelope_data(2.5, 97.5)
-        orig_times, orig_means, _, _ = original.get_envelope_data(0, 100)
-
-        df = pd.DataFrame({
-            "time": times,
-            "mean": means,
-            "lower": lower,
-            "upper": upper
-        })
-        
-        df.to_hdf("data.h5", key="processed", mode="w")
-        pd.DataFrame({
-            "time": orig_times,
-            "mean": orig_means
-        }).to_hdf("data.h5", key="original")
-
-
+        boxplot.export_data(output_file=args.o)
 
     elif args.function == "draw":
-        plot_sleeve("data.h5", plot_file_name=args.o)
-        dfs = [pd.read_csv(args.o.replace(".png", f"_epoch{i}.csv")) for i in range(3)]
-        plot_boxes(dfs)
+        output_name = args.o.replace(".png", "")
+        dfs = [pd.read_csv(f"{args.o}_nme_epoch{i}.csv") for i in range(3)]
+        plot_error_decay_analysis(dfs, plot_file_name=f"{args.o}_decay.png")
+        plot_sleeve(f"{args.o}_sleeve.h5", plot_file_name=f"{args.o}_sleeve.png")
+        plot_boxes(dfs, plot_file_name=f"{args.o}_boxplot.png")
