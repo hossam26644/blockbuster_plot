@@ -60,7 +60,7 @@ snakeclean:
 	rm -r .snakemake snakemake/sfss snakemake/prediction snakemake/combined_demes.yml snakemake/combined_demes.png snakemake/combined_demes_ci.png snakemake/combined_demes_ci_end_time.csv
 
 boxplot:
-	cd box_plot_figure && snakemake --cores 16 --directory .. --force --keep-incomplete  --rerun-incomplete
+	cd box_plot_figure && snakemake --cores 16 --directory .. --force --keep-incomplete  --rerun-incomplete --resources parallel_slots=4
 
 boxunlock:
 	cd box_plot_figure && snakemake --cores 16 --directory .. --force --keep-incomplete  --rerun-incomplete --unlock

@@ -10,7 +10,8 @@ import pandas as pd
 from matplotlib import colormaps as mcm
 from scipy.optimize import curve_fit
 from scipy.stats import linregress
-    
+from typing import List, Optional
+
     
 COLORS = mcm["Pastel1"].colors
 
@@ -750,8 +751,10 @@ class BoxPlotter:
             sizes_per_seq.to_csv(f"{output_file}_nme_epoch{i}.csv", index=False)      
 
         #Data for sleeve
-        largest = max(self.successful_runs, key=lambda s: int(s.split('_')[-2]))
-        
+        largest = max(
+            self.successful_runs,
+            key=lambda s: (int(s.split('_')[-2].replace("k", "")), int(s.split('_')[-3]))
+        )        
         combined_simulations = self.deme_per_seq[largest]
 
         times, means, lower, upper = combined_simulations.get_envelope_data(2.5, 97.5)
@@ -771,16 +774,14 @@ class BoxPlotter:
         }).to_hdf(f"{output_file}_sleeve.h5", key="original")      
 
 
-def plot_boxes(epochs: List[pd.DataFrame], plot_file_name: str = "boxplot_plot.png"):
-    fig = plt.figure(figsize=(12, 7))
-    
-    # Create main axis for boxplots
-    fig, ax = plt.subplots(figsize=(10, 6))
-    
-    
+def plot_boxes(epochs: List[pd.DataFrame], ax: Optional[plt.Axes] = None):
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+
     # Get all runs
-    runs = sorted(epochs[0].columns, key=lambda k: (int(k.split('_')[0]), k.split('_')[1]))
-    
+    runs = sorted(epochs[0].columns, key=lambda k: (int(k.split('_')[0]), int(k.split('_')[1].strip("k"))))
+    ks = len(set(r.split('_')[1] for r in runs))!=1
+    print(set(r.split('_')[1] for r in runs))
     num_epochs = len(epochs)
     num_runs = len(runs)
     
@@ -809,7 +810,10 @@ def plot_boxes(epochs: List[pd.DataFrame], plot_file_name: str = "boxplot_plot.p
     # Set x-axis ticks
     tick_positions = [run_idx * (group_width + gap) + (num_epochs - 1) / 2 for run_idx in range(num_runs)]
     ax.set_xticks(tick_positions)
-    runs_formatted = [format_si(r.split('_')[0])+"bp" for r in runs]
+    if not ks:
+        runs_formatted = [format_si(r.split('_')[0])+"bp" for r in runs]
+    else:
+        runs_formatted = ["SMC(" + format_si(r.split('_')[1].strip("k"))+")" for r in runs]
     ax.set_xticklabels(runs_formatted)
     
     # Create legend
@@ -817,19 +821,21 @@ def plot_boxes(epochs: List[pd.DataFrame], plot_file_name: str = "boxplot_plot.p
                                      label=f'Epoch {i+1}') 
                        for i in range(num_epochs)]
     ax.legend(handles=legend_elements, loc='best')
-    
-    ax.set_title('Normalised Mean Squared Error', loc='left')
-    ax.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.savefig(plot_file_name, dpi=300, bbox_inches='tight')
+    ax.set_xlabel('Sequence length', fontsize=12)
 
-def plot_sleeve(hdf5file: str, plot_file_name: str = "sleeve_plot.png"):
+    ax.set_title('Normalised Mean Squared Error')
+    ax.grid(True, alpha=0.3)
+
+    return ax
+
+def plot_sleeve(hdf5file: str, ax: Optional[plt.Axes] = None):
 
     df_processed = pd.read_hdf(hdf5file, key="processed")
     df_original = pd.read_hdf(hdf5file, key="original")
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+
     orig_times, orig_means = df_original["time"], df_original["mean"]
 
     sorted_times = sorted(orig_times)
@@ -845,13 +851,12 @@ def plot_sleeve(hdf5file: str, plot_file_name: str = "sleeve_plot.png"):
         i += 2
     ax.plot(orig_times, orig_means, color='blue', linewidth=2, label='Original deme')
     ax.set_xlabel('Time (generations)', fontsize=12)
-    ax.set_ylabel('Population Size', fontsize=12)
+    ax.set_title('Population Size')
     ax.set_xscale('log')
-    ax.set_title('Population Size Envelope Across Demes', fontsize=14, fontweight='bold')
+    #ax.set_title('Population Size Envelope Across Demes', fontsize=14, fontweight='bold')
     ax.legend(loc='best')
     ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(plot_file_name)
+    return ax
 
 def plot_error_decay_analysis(epochs: List[pd.DataFrame], plot_file_name: str = "decay_analysis.png"):
         
@@ -941,5 +946,15 @@ if __name__ == "__main__":
         output_name = args.o.replace(".png", "")
         dfs = [pd.read_csv(f"{args.o}_nme_epoch{i}.csv") for i in range(3)]
         plot_error_decay_analysis(dfs, plot_file_name=f"{args.o}_decay.png")
-        plot_sleeve(f"{args.o}_sleeve.h5", plot_file_name=f"{args.o}_sleeve.png")
-        plot_boxes(dfs, plot_file_name=f"{args.o}_boxplot.png")
+        
+        fig, (ax1, ax2) = plt.subplots(
+            nrows=1,
+            ncols=2,
+            figsize=(20, 6),
+            constrained_layout=True
+        )
+        plot_sleeve(f"{args.o}_sleeve.h5", ax=ax1)
+        plot_boxes(dfs, ax=ax2)
+
+        plt.savefig(f"{output_name}_combinedplot.png", dpi=300, bbox_inches='tight')
+

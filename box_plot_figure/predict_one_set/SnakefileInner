@@ -13,6 +13,7 @@ BRANCH_SFS = bool(strtobool(str(config["branch_sfs"])))
 BLOCKS = config.get("blocks", None)
 FIXED_TIMES = config.get("fixed_times", None)  # optional
 P_STRING_FLAG = bool(strtobool(str(config.get("blockbuster_assist", True))))
+K = config["k"]
 
 print(config["sequence_length"])
 if BRANCH_SFS:
@@ -65,15 +66,15 @@ rule all:
         f"{OUT_DIR}/results_ci_end_time.csv"
 
 rule simulate_sfs:
+    params:
+        config_file = f"{OUT_DIR}/config.yml"
     output:
         sfs_file = f"{SFS_DIR}/sfs_{{seed}}.blk"
-    params:
-        seq_len=config["sequence_length"],
-        mut=config["mutation_rate"],
-        rec=config["recombination_rate"]
     shell:
         "pwd; "
-        "python ../predict_one_set/scripts/simulate_sfs.py {wildcards.seed} {GRAPH} {params.seq_len} {params.mut} {params.rec} {output.sfs_file} {BRANCH_SFS}"
+        "echo python ../predict_one_set/scripts/simulate_sfs.py {params.config_file} {wildcards.seed}; "
+        "python ../predict_one_set/scripts/simulate_sfs.py {params.config_file} {wildcards.seed}; "
+
 
 rule plot_sfs:
     input:
