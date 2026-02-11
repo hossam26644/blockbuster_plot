@@ -6,6 +6,14 @@ configfile: "box_plot_figure/config.yml"
 
 OUT_DIR = config["output_dir"]
 SEQ_LENGTHS = config["seq_lengths"]  # Assuming this is a list in your config
+KS = config.get("ks", None)
+
+if (KS is not None) and (len(KS) > 1):
+    assert len(SEQ_LENGTHS) == 1, "If ks is provided, simulate one sequence length only"
+elif KS is None:
+    KS = [1]
+else:
+    assert len(KS) == 1, "If ks is provided, it should be a list of length 1 or None"
 
 if "branch_sfs" in config and config["branch_sfs"] is not None:
     branch_val = bool(strtobool(str(config["branch_sfs"])))
@@ -19,7 +27,9 @@ else:
 with open("box_plot_figure/config.yml", 'r') as f:
     base_inner_config = yaml.safe_load(f)
 
-threads_per_seq = min(4, int(16/len(SEQ_LENGTHS)))
+
+slots = config.get("slots", 4)
+threads_per_seq = int(16/slots)
 print(f"Allocating {threads_per_seq} threads per sequence length")
 
 
@@ -27,8 +37,9 @@ SUFFIX_TO_BRANCH_SFS = {suffix: value for value, suffix in BRANCH_SFS_OPTIONS}
 
 rule all:
     input:
-        [f"{OUT_DIR}_seq_{seq_length}_{suffix}/config.yml" 
-         for seq_length in SEQ_LENGTHS 
+        [f"{OUT_DIR}_seq_{seq_length}_k{k}_{suffix}/config.yml" 
+         for seq_length in SEQ_LENGTHS
+         for k in KS
          for _, suffix in BRANCH_SFS_OPTIONS],      
         f"{OUT_DIR}_done.txt"
         
@@ -36,10 +47,11 @@ rule all:
 
 rule create_inner_config:
     output:
-        config_file = "{output}_seq_{seq_length}_{suffix}/config.yml"
+        config_file = "{output}_seq_{seq_length}_k{k}_{suffix}/config.yml"
     params:
-        output_name = lambda wildcards: f"{wildcards.output}_seq_{wildcards.seq_length}_{wildcards.suffix}",
+        output_name = lambda wildcards: f"{wildcards.output}_seq_{wildcards.seq_length}_k{wildcards.k}_{wildcards.suffix}",
         seq_length = lambda wildcards: int(wildcards.seq_length),
+        k = lambda wildcards: int(wildcards.k),
         branch_sfs = lambda wildcards: SUFFIX_TO_BRANCH_SFS[wildcards.suffix]
     run:
         # Copy base config and update parameters
@@ -47,7 +59,9 @@ rule create_inner_config:
         inner_config["sequence_length"] = params.seq_length
         inner_config["output_dir"] = params.output_name
         inner_config["branch_sfs"] = params.branch_sfs
+        inner_config["k"] = params.k
         del inner_config["seq_lengths"]  # Remove seq_lengths to avoid confusion
+        del inner_config["ks"]  # Remove ks to avoid confusion
         # Create directory and write config
         os.makedirs(os.path.dirname(output.config_file), exist_ok=True)
         with open(output.config_file, 'w') as f:
@@ -56,27 +70,23 @@ rule create_inner_config:
 
 rule run_single_sequence_length:
     input:
-        config_file = "{output}_seq_{seq_length}_{suffix}/config.yml"
+        config_file = "{output}_seq_{seq_length}_k{k}_{suffix}/config.yml"
     output:
-        result = "{output}_seq_{seq_length}_{suffix}/results.png",
-        status = "{output}_seq_{seq_length}_{suffix}/status.txt"
+        result = "{output}_seq_{seq_length}_k{k}_{suffix}/results.png",
+        status = "{output}_seq_{seq_length}_k{k}_{suffix}/status.txt"
     params:
-        workdir = "{output}_seq_{seq_length}_{suffix}",
+        workdir = "{output}_seq_{seq_length}_k{k}_{suffix}",
         snakefile = "box_plot_figure/predict_one_set/SnakefileInner",
         graph = config["graph"]
-
+    resources:
+        parallel_slots=1 
     shell:
         """
         if snakemake -s {params.snakefile} \
             --configfile {input.config_file} \
             --cores {threads_per_seq} \
             --directory {params.workdir} \
-            {output.result}; then
-
-            python box_plot_figure/calculate_area.py \
-                -d {params.workdir}/results.yml \
-                -r {params.graph} \
-                -o {params.workdir}/sleeve.png;       
+            {output.result}; then   
 
             echo "SUCCESS" > {output.status} 
 
@@ -89,14 +99,14 @@ rule run_single_sequence_length:
 
 rule create_boxplot:
     input:
-        statuses = expand("{output}_seq_{seq_length}_{suffix}/status.txt",
+        statuses = expand("{output}_seq_{seq_length}_k{k}_{suffix}/status.txt",
                          output=OUT_DIR,
+                         k=KS,
                          seq_length=SEQ_LENGTHS,
                          suffix=[suffix for _, suffix in BRANCH_SFS_OPTIONS])
     output:
-        boxplot = "{output}_boxplot.png",
-        decay = "{output}_decay.png",
-        sleeve = "{output}_sleeve.png"
+        combinedplot = "{output}_combinedplot.png",
+        decay = "{output}_decay.png"
     params:
         workdir = OUT_DIR
     run:
@@ -119,21 +129,23 @@ rule create_boxplot:
             subprocess.run(cmd, check=True)
         else:
             # Handle case with no successful runs
-            with open(output.boxplot, 'w') as f:
+            with open(output.combinedplot, 'w') as f:
                 f.write("No successful runs")
 
 
 rule run_finalize:
     input:
-        results = expand("{output}_seq_{seq_length}_{suffix}/results.png", 
+        results = expand("{output}_seq_{seq_length}_k{k}_{suffix}/results.png", 
                         output=OUT_DIR, 
+                        k=KS,
                         seq_length=SEQ_LENGTHS,
                         suffix=[suffix for _, suffix in BRANCH_SFS_OPTIONS]),
-        statuses = expand("{output}_seq_{seq_length}_{suffix}/status.txt",
+        statuses = expand("{output}_seq_{seq_length}_k{k}_{suffix}/status.txt",
                          output=OUT_DIR,
+                         k=KS,
                          seq_length=SEQ_LENGTHS,
                          suffix=[suffix for _, suffix in BRANCH_SFS_OPTIONS]),
-        boxplot = "{output}_boxplot.png"  # Add dependency on boxplot
+        combinedplot = "{output}_combinedplot.png"  # Add dependency on boxplot
     output:
         "{output}_done.txt"
     run:
