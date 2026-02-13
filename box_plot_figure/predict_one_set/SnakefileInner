@@ -1,5 +1,5 @@
 import os
-from distutils.util import strtobool
+from str2bool import str2bool
 import demes
 
 #configfile: "snakemake/config.yml"
@@ -9,10 +9,10 @@ SFS_DIR = "sfss"
 PRED_DIR = "prediction"
 OUT_DIR=config["output_dir"]
 GRAPH=config["graph"]
-BRANCH_SFS = bool(strtobool(str(config["branch_sfs"])))
+BRANCH_SFS = bool(str2bool(str(config["branch_sfs"])))
 BLOCKS = config.get("blocks", None)
 FIXED_TIMES = config.get("fixed_times", None)  # optional
-P_STRING_FLAG = bool(strtobool(str(config.get("blockbuster_assist", True))))
+P_STRING_FLAG = bool(str2bool(str(config.get("blockbuster_assist", True))))
 K = config["k"]
 
 print(config["sequence_length"])
@@ -72,7 +72,6 @@ rule simulate_sfs:
         sfs_file = f"{SFS_DIR}/sfs_{{seed}}.blk"
     shell:
         "pwd; "
-        "echo python ../predict_one_set/scripts/simulate_sfs.py {params.config_file} {wildcards.seed}; "
         "python ../predict_one_set/scripts/simulate_sfs.py {params.config_file} {wildcards.seed}; "
 
 
@@ -126,7 +125,6 @@ rule anaylse:
     shell:
         """
         python ../predict_one_set/scripts/combine.py {PRED_DIR} {BLOCKS} {output.yml} {input.successful_list}
-        echo "python ../predict_one_set/scripts/combine.py {PRED_DIR} {BLOCKS} {output.yml} {input.successful_list}"
         python ../predict_one_set/scripts/drawcombined.py {output.yml} {GRAPH} {output.png}
         """
 

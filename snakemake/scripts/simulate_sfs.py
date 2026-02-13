@@ -1,7 +1,7 @@
 import msprime
 import demes
 import sys
-from distutils.util import strtobool
+from str2bool import str2bool
 
 # Inputs
 seed = int(sys.argv[1])
@@ -10,7 +10,7 @@ sequence_length = int(sys.argv[3])
 mutation_rate = float(sys.argv[4])
 recombination_rate = float(sys.argv[5])
 output_path = sys.argv[6]
-branch_sfs = strtobool(sys.argv[7])
+branch_sfs = str2bool(sys.argv[7])
 
 graph = demes.load(graph_path)
 demography = msprime.Demography.from_demes(graph)
@@ -23,7 +23,7 @@ ts = msprime.sim_ancestry(
     sequence_length=sequence_length,
     recombination_rate=recombination_rate,
     demography=demography,
-    model=msprime.SmcKApproxCoalescent(hull_offset=1)
+    model= msprime.SMCK(1)
 )
 if not branch_sfs:
     print("Adding mutations to tree sequence")

@@ -1,6 +1,5 @@
 import os
-from distutils.util import strtobool
-
+from str2bool import str2bool
 #configfile: "snakemake/config.yml"
 
 REPEATS = config["repeats"]
@@ -8,7 +7,7 @@ SFS_DIR = "snakemake/sfss"
 PRED_DIR = "snakemake/prediction"
 OUT_FILE=config["output_file"]
 GRAPH=config["graph"],
-BRANCH_SFS = bool(strtobool(str(config["branch_sfs"])))
+BRANCH_SFS = bool(str2bool(str(config["branch_sfs"])))
 BLOCKS = config["blocks"]
 FIXED_TIMES = config.get("fixed_times", None)  # optional
 

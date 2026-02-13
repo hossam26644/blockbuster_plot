@@ -1,9 +1,10 @@
 time_units: generations
 generation_time: 1
+metadata: {earliest_time: 1000000}
 demes:
 - name: EUR
   description: European D. melanogaster population
   epochs:
   - {end_time: 675000, start_size: 171191.6}
-  - {end_time: 80000, start_size: 1400000}
+  - {end_time: 80000, start_size: 800000}
   - {end_time: 0, start_size: 1652381}

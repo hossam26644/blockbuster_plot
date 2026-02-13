@@ -1,9 +1,8 @@
 import msprime
 import demes
 import sys
-from distutils.util import strtobool
 import yaml
-
+from str2bool import str2bool
 # Inputs
 settings_file = str(sys.argv[1])
 seed = int(sys.argv[2])
@@ -14,14 +13,14 @@ sequence_length = settings_json["sequence_length"]
 mutation_rate = settings_json["mutation_rate"]
 recombination_rate = settings_json["recombination_rate"]
 output_path = str(settings_json["output_dir"])+f"/sfss/sfs_{seed}.blk"
-branch_sfs = strtobool(str(settings_json["branch_sfs"]))
+branch_sfs = str2bool(str(settings_json["branch_sfs"]))
 k = settings_json["k"]
 
 graph = demes.load(graph_path)
 demography = msprime.Demography.from_demes(graph)
 
 if int(k) < int(sequence_length):
-    model = msprime.SmcKApproxCoalescent(hull_offset=k)
+    model = msprime.SMCK(k)
 else:
     model = None
 

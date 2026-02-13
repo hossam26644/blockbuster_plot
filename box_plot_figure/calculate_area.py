@@ -169,6 +169,8 @@ class DemesAnalyzer:
         Args:
             demes_file: Path to YAML file or YAML string
         """
+        self.min_time = min_time
+        self.max_time = max_time
         if demes_file is not None:
             self.data = self._load_yaml(demes_file)
             self.deme_data = self._parse_demes()
@@ -200,7 +202,11 @@ class DemesAnalyzer:
             deme_data = self.deme_data
         for deme in deme_data:
             time_points.update(deme.time_points)
-        time_points.add(max(time_points)*3)
+        if "metadata" in self.data and "earliest_time" in self.data["metadata"]:
+            time_points.add(self.data["metadata"]["earliest_time"])
+        else:
+            last_point = self.max_time if self.max_time != float('inf') else max(time_points)*3
+            time_points.add(last_point)
         return sorted([t for t in time_points if t != float('inf')], reverse=True)
         
     def _get_sizes_at_interval(self, t_start: float, t_end: float, deme_data=None) -> List[float]:

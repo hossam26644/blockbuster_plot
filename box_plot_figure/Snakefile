@@ -1,6 +1,6 @@
 import os
 import yaml
-from distutils.util import strtobool
+from str2bool import str2bool
 
 configfile: "box_plot_figure/config.yml"
 
@@ -16,7 +16,7 @@ else:
     assert len(KS) == 1, "If ks is provided, it should be a list of length 1 or None"
 
 if "branch_sfs" in config and config["branch_sfs"] is not None:
-    branch_val = bool(strtobool(str(config["branch_sfs"])))
+    branch_val = bool(str2bool(str(config["branch_sfs"])))
     suffix = "branch" if branch_val else "mut"
     BRANCH_SFS_OPTIONS = [(branch_val, suffix)]
 else:
@@ -28,7 +28,7 @@ with open("box_plot_figure/config.yml", 'r') as f:
     base_inner_config = yaml.safe_load(f)
 
 
-slots = config.get("slots", 4)
+slots = config.get("slots", 2)
 threads_per_seq = int(16/slots)
 print(f"Allocating {threads_per_seq} threads per sequence length")
 
