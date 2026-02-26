@@ -811,13 +811,14 @@ def plot_boxes(epochs: List[pd.DataFrame], ax: Optional[plt.Axes] = None):
     
     # Color the boxes
     for patch, color in zip(bp['boxes'], box_colors):
-        patch.set_facecolor(color)
+        patch.set(facecolor=color, alpha=0.85)
     
     # Set x-axis ticks
     tick_positions = [run_idx * (group_width + gap) + (num_epochs - 1) / 2 for run_idx in range(num_runs)]
     ax.set_xticks(tick_positions)
     if not ks:
         runs_formatted = [format_si(r.split('_')[0])+"bp" for r in runs]
+        ax.set_xlabel('Sequence length', fontsize=12)
     else:
         runs_formatted = ["SMC(" + format_si(r.split('_')[1].strip("k"))+")" for r in runs]
     ax.set_xticklabels(runs_formatted)
@@ -827,7 +828,6 @@ def plot_boxes(epochs: List[pd.DataFrame], ax: Optional[plt.Axes] = None):
                                      label=f'Epoch {i+1}') 
                        for i in range(num_epochs)]
     ax.legend(handles=legend_elements, loc='best')
-    ax.set_xlabel('Sequence length', fontsize=12)
 
     ax.set_title('Normalised Mean Squared Error')
     ax.grid(True, alpha=0.3)
@@ -928,6 +928,59 @@ def plot_error_decay_analysis(epochs: List[pd.DataFrame], plot_file_name: str = 
     plt.tight_layout()
     plt.savefig(plot_file_name, dpi=300, bbox_inches='tight')
 
+def plot_an_epoch_boxes(epoch: pd.DataFrame, ax: Optional[plt.Axes] = None, epoch_idx: int = 1):
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Get all runs
+    runs = sorted(epoch.columns, key=lambda k: (int(k.split('_')[0]), int(k.split('_')[1].strip("k"))))
+    ks = len(set(r.split('_')[1] for r in runs))!=1
+    print(set(r.split('_')[1] for r in runs))
+    num_epochs = 1
+    num_runs = len(runs)
+    
+    # Prepare data for box plots
+    positions = []
+    data_to_plot = []
+    box_colors = []
+    
+    group_width = 0.5
+    
+    for run_idx, run in enumerate(runs):
+        pos = run_idx * (group_width)
+        positions.append(pos)
+        data_to_plot.append(epoch[run].dropna())
+        box_colors.append(COLORS[epoch_idx % len(COLORS)])
+    
+    # Create box plots
+    bp = ax.boxplot(data_to_plot, positions=positions, widths=0.6, patch_artist=True, showfliers=False)
+    
+    # Color the boxes
+    for patch, color in zip(bp['boxes'], box_colors):
+        patch.set(facecolor=color, alpha=0.5)
+    
+    # Set x-axis ticks
+    tick_positions = [run_idx * (group_width) + (num_epochs - 1) / 2 for run_idx in range(num_runs)]
+    ax.set_xticks(tick_positions)
+    if not ks:
+        runs_formatted = [format_si(r.split('_')[0])+"bp" for r in runs]
+        ax.set_xlabel('Sequence length', fontsize=12)
+    else:
+        runs_formatted = ["SMC(" + format_si(r.split('_')[1].strip("k"))+")" for r in runs]
+
+    ax.set_xticklabels(runs_formatted)
+    
+    # Create legend
+    legend_elements = [plt.Rectangle((0, 0), 1, 1, facecolor=COLORS[epoch_idx % len(COLORS)], 
+                                     label=f'Epoch {i+1}') 
+                       for i in range(num_epochs)]
+    ax.legend(handles=legend_elements, loc='best')
+
+    ax.set_title('Normalised Mean Squared Error')
+    ax.grid(True, alpha=0.3)
+
+    return ax
+
 
 if __name__ == "__main__":
 
@@ -951,6 +1004,12 @@ if __name__ == "__main__":
     elif args.function == "draw":
         output_name = args.o.replace(".png", "")
         dfs = [pd.read_csv(f"{args.o}_nme_epoch{i}.csv") for i in range(3)]
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+
+        plot_an_epoch_boxes(dfs[1], ax=ax)
+        plt.savefig(f"{output_name}_compare_boxes.png", dpi=300, bbox_inches='tight')
+
         plot_error_decay_analysis(dfs, plot_file_name=f"{args.o}_decay.png")
         
         fig, (ax1, ax2) = plt.subplots(

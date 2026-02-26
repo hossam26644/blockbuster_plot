@@ -22,6 +22,7 @@ demography = msprime.Demography.from_demes(graph)
 if int(k) < int(sequence_length):
     model = msprime.SMCK(k)
 else:
+    assert k == sequence_length, "k must be less than or equal to sequence length"
     model = None
 
 print(f"Simulating SFS with seed {seed} and k={k} (branch_sfs={branch_sfs}), model={model}")
